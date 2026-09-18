@@ -1,0 +1,49 @@
+name: mobile_marketplace_moda
+description: "Aplicación móvil de FashionStore: catálogo, vestidor virtual y compra desde el teléfono."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Estado de la aplicación. Equivale a las señales del frontend Angular:
+  # un valor observable del que la vista se vuelve a dibujar sola.
+  flutter_riverpod: ^2.6.1
+
+  # Navegación declarativa con rutas nombradas, como app.routes.ts en Angular.
+  go_router: ^14.6.2
+
+  # Cliente HTTP con interceptores: hace falta para el bearer y el refresh.
+  dio: ^5.7.0
+
+  # El refresh token se guarda cifrado por el sistema, nunca en texto plano.
+  flutter_secure_storage: ^9.2.4
+
+  # Imágenes del catálogo con caché en disco: el móvil paga datos.
+  cached_network_image: ^3.4.1
+
+  # Fechas y montos en español boliviano.
+  intl: ^0.19.0
+
+  # Vestidor virtual (RF13): cámara en vivo + detección de pose en el
+  # dispositivo. Es el equivalente nativo de MediaPipe Pose en la web.
+  camera: ^0.11.0+2
+  google_mlkit_pose_detection: ^0.14.0
+
+  # Checkout de Stripe: se abre en el navegador del sistema y al volver la app
+  # concilia el pago contra el backend.
+  url_launcher: ^6.3.1
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
