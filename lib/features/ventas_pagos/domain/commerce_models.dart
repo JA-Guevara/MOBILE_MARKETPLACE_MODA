@@ -6,6 +6,50 @@ double _monto(dynamic valor) => valor is num
     ? valor.toDouble()
     : (double.tryParse('$valor') ?? 0);
 
+Map<String, int> _unidades(dynamic valor) {
+  if (valor is! Map) return const {};
+  return valor.map(
+    (clave, cantidad) => MapEntry('$clave', (cantidad as num?)?.toInt() ?? 0),
+  );
+}
+
+/// Sucursal disponible para una compra o una operación de caja.
+class Sucursal {
+  const Sucursal({required this.id, required this.nombre, required this.direccion});
+
+  final String id;
+  final String nombre;
+  final String direccion;
+
+  factory Sucursal.desdeJson(Map<String, dynamic> json) => Sucursal(
+        id: json['id'] as String? ?? '',
+        nombre: json['name'] as String? ?? '',
+        direccion: json['address'] as String? ?? '',
+      );
+}
+
+/// Caja habilitada dentro de una sucursal.
+class PuntoCaja {
+  const PuntoCaja({
+    required this.id,
+    required this.codigo,
+    required this.nombre,
+    required this.sucursalId,
+  });
+
+  final String id;
+  final String codigo;
+  final String nombre;
+  final String sucursalId;
+
+  factory PuntoCaja.desdeJson(Map<String, dynamic> json) => PuntoCaja(
+        id: json['id'] as String? ?? '',
+        codigo: json['code'] as String? ?? '',
+        nombre: json['name'] as String? ?? '',
+        sucursalId: json['branch_id'] as String? ?? '',
+      );
+}
+
 /// Ítem del carrito (web `CartItem`).
 class ItemCarrito {
   const ItemCarrito({
@@ -477,7 +521,60 @@ class IngresoTracking {
         date: json['date'] as String? ?? '',
       );
 
-  String get etiqueta => etiquetaEstadoPedido(status);
+  String get etiqueta => etiquetaPedido(status);
+}
+
+/// Estado de una devolución que el cliente puede solicitar para un pedido.
+class DisponibilidadDevolucion {
+  const DisponibilidadDevolucion({
+    required this.puedeSolicitar,
+    required this.unidades,
+    required this.devoluciones,
+    this.motivo,
+  });
+
+  final bool puedeSolicitar;
+  final String? motivo;
+  final Map<String, int> unidades;
+  final List<Devolucion> devoluciones;
+
+  factory DisponibilidadDevolucion.desdeJson(Map<String, dynamic> json) =>
+      DisponibilidadDevolucion(
+        puedeSolicitar: json['can_request'] as bool? ?? false,
+        motivo: json['reason'] as String?,
+        unidades: _unidades(json['units']),
+        devoluciones: (json['returns'] as List<dynamic>? ?? const [])
+            .map((fila) => Devolucion.desdeJson(fila as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
+/// Resultado de buscar un pedido en el mostrador para atender una devolución.
+class BusquedaMostrador {
+  const BusquedaMostrador({
+    required this.pedido,
+    required this.puedeSolicitar,
+    required this.unidades,
+    required this.devoluciones,
+    this.motivo,
+  });
+
+  final Pedido pedido;
+  final bool puedeSolicitar;
+  final String? motivo;
+  final Map<String, int> unidades;
+  final List<Devolucion> devoluciones;
+
+  factory BusquedaMostrador.desdeJson(Map<String, dynamic> json) =>
+      BusquedaMostrador(
+        pedido: Pedido.desdeJson(json['order'] as Map<String, dynamic>? ?? const {}),
+        puedeSolicitar: json['can_request'] as bool? ?? false,
+        motivo: json['reason'] as String?,
+        unidades: _unidades(json['units']),
+        devoluciones: (json['returns'] as List<dynamic>? ?? const [])
+            .map((fila) => Devolucion.desdeJson(fila as Map<String, dynamic>))
+            .toList(),
+      );
 }
 
 // --- Etiquetas (mismas palabras que la web) ---

@@ -13,7 +13,6 @@ class Formato {
 
   static final DateFormat _fechaHora = DateFormat("dd/MM/yyyy HH:mm", 'es');
   static final DateFormat _fecha = DateFormat('dd/MM/yyyy', 'es');
-  static final DateFormat _fechaCorta = DateFormat('dd/MM', 'es');
 
   /// `1234.5` → `Bs 1.234,50`.
   static String moneda(num valor) => _moneda.format(valor);

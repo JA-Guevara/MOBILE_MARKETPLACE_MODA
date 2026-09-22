@@ -8,7 +8,7 @@
 // sin cámara.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../features/reservas_vestidor/domain/pose_projection.dart';
+import '../domain/pose_projection.dart';
 
 /// Pose nativa del fotograma vertical (sin rotación del sensor aplicada).
 typedef CuerpoVertical = List<Landmark>;

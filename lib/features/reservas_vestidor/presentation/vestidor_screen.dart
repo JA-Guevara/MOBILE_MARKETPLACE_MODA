@@ -15,12 +15,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 
 import '../../../core/network/api_exception.dart';
-import '../../../features/reservas_vestidor/domain/garment_fit.dart';
-import '../../../features/reservas_vestidor/domain/garment_renderer.dart';
-import '../../../features/reservas_vestidor/domain/pose_projection.dart';
+import '../../usuarios_catalogo/application/session_controller.dart';
 import '../../usuarios_catalogo/domain/producto.dart';
 import '../../usuarios_catalogo/infrastructure/catalog_api.dart';
 import '../application/vestidor_controller.dart';
+import '../domain/garment_fit.dart';
+import '../domain/garment_renderer.dart';
+import '../domain/pose_projection.dart';
 import 'prenda_overlay.dart';
 
 /// Color de la prenda mientras no se trae del catálogo. Es el accent de la

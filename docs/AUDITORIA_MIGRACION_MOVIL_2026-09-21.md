@@ -41,6 +41,8 @@ La aplicación Flutter **no representa todavía una migración completa del fron
 ## Validación realizada
 
 - Se revisaron rutas, módulos Flutter, dependencias, permisos Android/iOS y pruebas disponibles.
+- El 21/09 se corrigieron 44 diagnósticos del editor: 41 eran efectos de una importación inválida en `CommerceApi`; los otros tres eran una dependencia de sesión perdida por la reorganización, una etiqueta de seguimiento mal nombrada y un formato de fecha sin uso. Además se incorporaron los DTO que faltaban para sucursales, puntos de caja, disponibilidad de devolución y búsqueda de mostrador, y se corrigió la ruta de puntos de caja al contrato del backend.
+- Se verificó de forma estática que todas las importaciones relativas internas de `lib/` apuntan a archivos existentes y que no quedan referencias a las rutas movidas.
 - `flutter analyze` no devolvió resultado en el entorno actual tras varios minutos, por lo que se canceló y **no se declara aprobado**.
 - Antes de entregar un APK debe ejecutarse en una máquina con Flutter/SDK operativo:
 

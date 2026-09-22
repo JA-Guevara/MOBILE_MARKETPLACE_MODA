@@ -1,9 +1,5 @@
-import 'package:dio/dio.dart';
-
 import '../../../core/network/api_client.dart';
-import '../../../core/network/api_exception.dart';
-import '../../../shared/models/api_response.dart';
-import 'domain/commerce_models.dart';
+import '../domain/commerce_models.dart';
 
 /// Cliente de ventas y pagos. Réplica de `commerce.service.ts` + la parte
 /// POS/devoluciones que la web vive en el mismo dominio. Como en la web, el
@@ -21,7 +17,7 @@ class CommerceApi {
   }
 
   Future<List<PuntoCaja>> puntosCaja(String branchId) async {
-    final filas = await _api.get<List<dynamic>>('/commerce/admin/pos/cash-points',
+    final filas = await _api.get<List<dynamic>>('/commerce/admin/cash-points',
         query: {'branch_id': branchId});
     return filas.map((e) => PuntoCaja.desdeJson(e as Map<String, dynamic>)).toList();
   }

@@ -6,8 +6,8 @@
 // probador, y le pide al renderer que dibuje la forma sobre el Canvas.
 import 'package:flutter/material.dart';
 
-import '../../../features/reservas_vestidor/domain/garment_renderer.dart';
-import '../../../features/reservas_vestidor/domain/pose_projection.dart';
+import '../domain/garment_renderer.dart';
+import '../domain/pose_projection.dart';
 
 class PrendaOverlayPainter extends CustomPainter {
   const PrendaOverlayPainter({
