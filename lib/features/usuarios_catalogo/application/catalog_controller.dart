@@ -4,7 +4,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../shared/models/api_response.dart';
 import '../domain/producto.dart';
 import '../infrastructure/catalog_api.dart';
-import '../../auth/application/session_controller.dart';
+import 'session_controller.dart';
 
 /// Filtros que la persona elige en el catálogo.
 class FiltrosCatalogo {
@@ -183,3 +183,4 @@ class CatalogController extends StateNotifier<EstadoCatalogo> {
 final StateNotifierProvider<CatalogController, EstadoCatalogo> catalogProvider =
     StateNotifierProvider<CatalogController, EstadoCatalogo>(
         (ref) => CatalogController(CatalogApi(ref.watch(apiClientProvider))));
+

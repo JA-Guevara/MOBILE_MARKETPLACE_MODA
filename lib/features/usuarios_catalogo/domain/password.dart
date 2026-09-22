@@ -1,4 +1,4 @@
-/// Reglas de contraseña, las mismas que `src/features/auth/domain/password.ts`
+/// Reglas de contraseña, las mismas que `src/features/usuarios_catalogo/domain/password.ts`
 /// de la web: no dependen de Flutter, se prueban sueltas y el backend las
 /// vuelve a imponer del lado del servidor.
 String? passwordError(String password, {String email = ''}) {

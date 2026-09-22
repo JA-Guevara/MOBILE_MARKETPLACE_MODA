@@ -38,6 +38,30 @@ class ApiClient {
   Future<T> delete<T>(String path, {Object? body}) =>
       _pedir<T>(() => dio.delete(path, data: body));
 
+  /// Sube un `FormData` (multipart): imágenes, Excel, la foto del probador IA.
+  /// Devuelve el `data` del envoltorio como el resto de los endpoints.
+  Future<T> subir<T>(String path, FormData datos, {Map<String, dynamic>? query}) =>
+      _pedir<T>(() => dio.post(path, data: datos, queryParameters: _limpiar(query)));
+
+  /// Descarga un archivo (plantilla Excel, exportación, comprobante PDF) a un
+  /// archivo local. Usa `dio.download` porque el servidor responde binario,
+  /// sin envoltorio y con `Content-Disposition: attachment`.
+  Future<void> descargar(
+    String path,
+    String destino, {
+    Map<String, dynamic>? query,
+  }) async {
+    try {
+      await dio.download(
+        path,
+        destino,
+        queryParameters: _limpiar(query),
+      );
+    } on DioException catch (error) {
+      throw ApiException.from(error);
+    }
+  }
+
   /// Ejecuta la petición y devuelve solo el `data` del envoltorio.
   Future<T> _pedir<T>(Future<Response<dynamic>> Function() peticion) async {
     try {
@@ -71,3 +95,4 @@ class ApiClient {
     return limpio;
   }
 }
+

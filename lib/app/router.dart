@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../features/auth/application/session_controller.dart';
-import '../features/auth/presentation/account_screen.dart';
-import '../features/auth/presentation/cambiar_contrasena_screen.dart';
-import '../features/auth/presentation/login_screen.dart';
-import '../features/auth/presentation/recuperar_contrasena_screen.dart';
-import '../features/auth/presentation/register_screen.dart';
-import '../features/auth/presentation/verificar_correo_screen.dart';
+import '../features/usuarios_catalogo/application/session_controller.dart';
+import '../features/usuarios_catalogo/presentation/account_screen.dart';
+import '../features/usuarios_catalogo/presentation/cambiar_contrasena_screen.dart';
+import '../features/usuarios_catalogo/presentation/login_screen.dart';
+import '../features/usuarios_catalogo/presentation/recuperar_contrasena_screen.dart';
+import '../features/usuarios_catalogo/presentation/register_screen.dart';
+import '../features/usuarios_catalogo/presentation/verificar_correo_screen.dart';
 import '../features/usuarios_catalogo/presentation/catalog_screen.dart';
+import '../features/reservas_vestidor/presentation/vestidor_screen.dart';
 import '../shared/widgets/pantalla_pendiente.dart';
 import 'home_shell.dart';
 
@@ -48,6 +49,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       // login en ese instante haría parpadear la pantalla en cada arranque.
       if (sesion.restaurando) return null;
       final destino = estado.matchedLocation;
+      // El espejo en vivo es público, igual que en la web; una cuenta se pide
+      // recién para guardar una foto IA o consultar información personal.
       final exigeSesion = _rutasPrivadas.any(destino.startsWith);
       if (exigeSesion && !sesion.autenticado) {
         return '/iniciar-sesion?volverA=${Uri.encodeComponent(destino)}';
@@ -107,17 +110,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/prendas/:slug/vestidor',
         parentNavigatorKey: _raiz,
-        builder: (context, estado) => const PantallaPendiente(
-          titulo: 'Probador virtual',
-          descripcion:
-              'Cámara en vivo con detección de pose en el dispositivo y la prenda '
-              'dibujada sobre el cuerpo (RF13). Es el equivalente nativo de lo que '
-              'en la web hace MediaPipe: acá lo resuelve google_mlkit_pose_detection.',
-          endpoints: [
-            'POST /vestidor/sessions',
-            'GET /catalog/products/{slug}',
-          ],
-        ),
+        builder: (context, estado) =>
+            VestidorScreen(slug: estado.pathParameters['slug'] ?? ''),
       ),
       GoRoute(
         path: '/reservar',
@@ -241,3 +235,4 @@ final routerProvider = Provider<GoRouter>((ref) {
 
 /// Rutas que no tienen sentido sin sesión iniciada.
 const _rutasPrivadas = ['/mi-cuenta', '/carrito', '/reservar'];
+

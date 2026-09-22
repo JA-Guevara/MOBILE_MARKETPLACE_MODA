@@ -29,3 +29,4 @@ class Environment {
   static bool get isProduction =>
       apiUrl.startsWith('https://') && !apiUrl.contains('localhost');
 }
+

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_marketplace_moda/features/auth/domain/password.dart';
+import 'package:mobile_marketplace_moda/features/usuarios_catalogo/domain/password.dart';
 
 void main() {
   group('passwordError', () {

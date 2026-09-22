@@ -57,3 +57,4 @@ class Sesion {
         usuario: Usuario.desdeJson(json['user'] as Map<String, dynamic>),
       );
 }
+

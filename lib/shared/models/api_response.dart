@@ -48,3 +48,4 @@ class Page<T> {
 
   bool get hasMore => page < pages;
 }
+

@@ -35,6 +35,11 @@ class CatalogApi {
     return Page.from(json, (fila) => Producto.desdeJson(fila));
   }
 
+  Future<Producto> detalle(String slug) async {
+    final json = await _api.get<Map<String, dynamic>>('/catalog/products/$slug');
+    return Producto.desdeJson(json);
+  }
+
   Future<List<Referencia>> referencias(String recurso) async {
     final filas = await _api.get<List<dynamic>>('/catalog/$recurso');
     return filas

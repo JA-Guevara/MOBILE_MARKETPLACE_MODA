@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../features/auth/application/session_controller.dart';
+import '../features/usuarios_catalogo/application/session_controller.dart';
 import 'router.dart';
 import 'theme.dart';
 
@@ -32,3 +32,4 @@ class _FashionStoreAppState extends ConsumerState<FashionStoreApp> {
     );
   }
 }
+

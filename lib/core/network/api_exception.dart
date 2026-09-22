@@ -59,3 +59,4 @@ class ApiException implements Exception {
         _ => 'No se pudo completar la operación.',
       };
 }
+

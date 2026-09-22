@@ -2,6 +2,8 @@
     <!-- Red: la app llama al backend en el teléfono. Falta en release si no se
          declara acá; el manifest de debug lo agrega solo para desarrollo. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Probador virtual (RF13): el vestidor corre la cámara en vivo. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
     <application
         android:label="FashionStore"
         android:name="${applicationName}"
