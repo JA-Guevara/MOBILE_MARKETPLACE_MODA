@@ -8,7 +8,6 @@
 // viven en `lib/features/reservas_vestidor/domain` y son las mismas que se prueban aisladas.
 import 'dart:async';
 import 'dart:io' show Platform;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';

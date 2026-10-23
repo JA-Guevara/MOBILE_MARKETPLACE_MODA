@@ -43,11 +43,17 @@ dependencies:
   permission_handler: ^13.0.2
   share_plus: ^12.0.2
   path_provider: ^2.1.6
+  sqflite: ^2.4.5
+  path: ^1.9.1
+  connectivity_plus: ^7.3.2
+  flutter_cache_manager: ^3.4.5
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  sqflite_common_ffi: ^2.4.5
 
 flutter:
   uses-material-design: true

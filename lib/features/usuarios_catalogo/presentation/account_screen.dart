@@ -246,6 +246,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             ],
             const Divider(height: 40),
             _Acceso(
+              icono: Icons.offline_pin_outlined,
+              titulo: 'Modo sin conexión',
+              detalle: 'Catálogo y reservas en el teléfono',
+              onTap: () => context.push('/sin-conexion'),
+            ),
+            _Acceso(
               icono: Icons.receipt_long_outlined,
               titulo: 'Mis pedidos',
               detalle: 'Compras y pagos',

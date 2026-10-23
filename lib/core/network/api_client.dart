@@ -22,7 +22,7 @@ class ApiClient {
               // fallar la primera pantalla aunque el servidor estuviera bien.
               connectTimeout: const Duration(seconds: 30),
               receiveTimeout: const Duration(seconds: 30),
-              headers: {'Accept': 'application/json'},
+              headers: {'Accept': 'application/json', 'X-Tenant-Slug': Environment.tenantSlug},
               // El error se traduce acá, no en cada pantalla.
               validateStatus: (status) => status != null && status < 400,
             ));

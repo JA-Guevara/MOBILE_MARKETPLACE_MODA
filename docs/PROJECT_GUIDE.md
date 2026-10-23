@@ -1,5 +1,19 @@
 # FashionStore Móvil — guía del proyecto
 
+## Segundo parcial: estado vigente (23/10/2026)
+
+Las secciones históricas describen el inicio del proyecto. El código actual incluye el flujo de cliente y la operación local CU-00/CU-04/CU-05; las pantallas ya no son marcadores.
+
+- `core/offline` abre SQLite `fashionstore_offline.db` v1 con nueve tablas, metadatos e identificador persistente de dispositivo. Fábrica y ruta inyectables permiten pruebas en memoria y archivos temporales con `sqflite_common_ffi`.
+- `Usuario` incorpora empresa/suscripción y `TENANT_SLUG` configura el catálogo público. El encabezado de empresa prevalece desde la cuenta cuando hay sesión. La conectividad usa `connectivity_plus`; el catálogo principal cambia a lectura local sin red.
+- `/sin-conexion` prepara una instantánea completa/incremental y precarga imágenes en una caché propia. Solo confirma versión y datos tras completar la descarga. Vincula catálogo a empresa/usuario/sucursal, aplica bajas, sustituye clientes según permisos y conserva la cola pendiente al actualizar.
+- `/sin-conexion/catalogo` filtra texto, categoría, talla, color, precio, ofertas y existencias. Indica fecha/antigüedad con aviso después de24horas y muestra estado vacío si nunca se descargó. La descarga automática al iniciar sesión requiere Wi-Fi y respeta la preferencia persistida.
+- `/sin-conexion/reservar`, `/sin-conexion/reservas` y `/sin-conexion/reservas/:id` crean, listan y anulan reservas locales. Transacción de reserva/ítems/cola/stock, máximo20 variantes y10 unidades por variante; comprobante provisional con UUID, dispositivo y QR. Una operación confirmada no se puede cancelar localmente; la pendiente queda anulada con historial y stock restaurado.
+- Solo el error de red permite restaurar perfil sin tokens; una sesión revocada no se restaura. El perfil local no cuenta como autenticación remota. Empresa/usuario ajenos no ven reservas ni catálogo previos. Vencimiento o suspensión bloquean altas y permiten consulta.
+- La sincronización con servidor CU-07 no forma parte de estos casos: las operaciones quedan `PENDIENTE`. El backend ya acepta el payload offline con idempotencia para el futuro envío.
+
+Validación local: `flutter analyze` y `flutter test`; las pruebas cubren SQLite real, rollback, concurrencia, reapertura, perfil revocado, cambio de cuenta, imágenes y widgets de320px. Las capturas de `build/qa-offline` son renders de pruebas con datos sintéticos, no evidencia de un teléfono físico. No se detectó Android conectado; generar APK y comprobar modo avión en un dispositivo siguen pendientes de validación manual.
+
 ## 1. Qué es y qué no es
 
 Aplicación de **cliente** en Flutter. Consume exactamente los mismos endpoints que el frontend web: no existe una API para móvil.

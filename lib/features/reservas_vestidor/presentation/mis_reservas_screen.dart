@@ -6,6 +6,8 @@ import '../../../shared/formato.dart';
 import '../../../shared/widgets/estado_vista.dart';
 import '../application/reservas_controller.dart';
 import '../domain/reserva.dart';
+import '../../operacion_offline/application/reserva_offline_controller.dart';
+import '../../operacion_offline/domain/reserva_local.dart';
 
 /// «Mis reservas» (`/mi-cuenta/reservas`), réplica de `mis-reservas.component.ts`.
 class MisReservasScreen extends ConsumerStatefulWidget {
@@ -54,7 +56,12 @@ class _MisReservasScreenState extends ConsumerState<MisReservasScreen> {
     final tema = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mis reservas')),
+      appBar: AppBar(title: const Text('Mis reservas'), actions: [
+        ref.watch(reservasLocalesProvider).when(data: (locales) => Padding(
+          padding: const EdgeInsets.only(right: 10),
+          child: ActionChip(label: Text('En el teléfono (${locales.where((r) => r.operacion.estado == EstadoOperacion.pendiente).length})'), onPressed: () => context.push('/sin-conexion/reservas')),
+        ), loading: () => const SizedBox.shrink(), error: (_, __) => const SizedBox.shrink()),
+      ]),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/reservar'),
         icon: const Icon(Icons.add),

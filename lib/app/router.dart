@@ -21,6 +21,12 @@ import '../features/reservas_vestidor/presentation/vestidor_screen.dart';
 import '../features/reservas_vestidor/presentation/mis_reservas_screen.dart';
 import '../features/reservas_vestidor/presentation/nueva_reserva_screen.dart';
 import 'home_shell.dart';
+import '../features/operacion_offline/presentation/catalogo_adaptable.dart';
+import '../features/operacion_offline/presentation/preparar_offline_screen.dart';
+import '../features/operacion_offline/presentation/catalogo_offline_screen.dart';
+import '../features/operacion_offline/presentation/reserva_offline_screen.dart';
+import '../features/operacion_offline/presentation/reservas_locales_screen.dart';
+import '../features/operacion_offline/presentation/comprobante_reserva_screen.dart';
 
 /// Rutas de la aplicación, con los mismos nombres que la web.
 ///
@@ -66,6 +72,32 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/sin-conexion',
+        parentNavigatorKey: _raiz,
+        builder: (context, estado) => const PrepararOfflineScreen(),
+      ),
+      GoRoute(
+        path: '/sin-conexion/catalogo',
+        parentNavigatorKey: _raiz,
+        builder: (context, estado) => const CatalogoOfflineScreen(),
+      ),
+      GoRoute(
+        path: '/sin-conexion/reservar',
+        parentNavigatorKey: _raiz,
+        builder: (context, estado) => const ReservaOfflineScreen(),
+      ),
+      GoRoute(
+        path: '/sin-conexion/reservas',
+        parentNavigatorKey: _raiz,
+        builder: (context, estado) => const ReservasLocalesScreen(),
+      ),
+      GoRoute(
+        path: '/sin-conexion/reservas/:id',
+        parentNavigatorKey: _raiz,
+        builder: (context, estado) =>
+            ComprobanteReservaScreen(id: estado.pathParameters['id']!),
+      ),
       GoRoute(
         path: '/iniciar-sesion',
         builder: (context, estado) =>
@@ -140,7 +172,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/',
-                builder: (context, estado) => const CatalogScreen(),
+                builder: (context, estado) => const CatalogoAdaptable(),
               ),
             ],
           ),

@@ -10,6 +10,7 @@
 ///   flutter run --dart-define-from-file=.env                       // lo que diga el .env
 class Environment {
   const Environment._();
+  static const tenantSlug = String.fromEnvironment('TENANT_SLUG', defaultValue: 'fashionstore');
 
   /// Backend por defecto: el de producción. Para probar contra el backend
   /// local, pasar `--dart-define=API_URL=http://10.0.2.2:8000/api/v1` (emulador)
