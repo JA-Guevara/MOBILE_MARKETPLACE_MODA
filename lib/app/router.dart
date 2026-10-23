@@ -6,12 +6,20 @@ import '../features/usuarios_catalogo/application/session_controller.dart';
 import '../features/usuarios_catalogo/presentation/account_screen.dart';
 import '../features/usuarios_catalogo/presentation/cambiar_contrasena_screen.dart';
 import '../features/usuarios_catalogo/presentation/login_screen.dart';
+import '../features/usuarios_catalogo/presentation/prenda_screen.dart';
+import '../features/ventas_pagos/presentation/carrito_screen.dart';
+import '../features/ventas_pagos/presentation/pedido_detalle_screen.dart';
+import '../features/ventas_pagos/presentation/pedidos_screen.dart';
+import '../features/ventas_pagos/presentation/favoritos_screen.dart';
+import '../features/ventas_pagos/presentation/sucursales_screen.dart';
+import '../features/usuarios_catalogo/presentation/direcciones_screen.dart';
 import '../features/usuarios_catalogo/presentation/recuperar_contrasena_screen.dart';
 import '../features/usuarios_catalogo/presentation/register_screen.dart';
 import '../features/usuarios_catalogo/presentation/verificar_correo_screen.dart';
 import '../features/usuarios_catalogo/presentation/catalog_screen.dart';
 import '../features/reservas_vestidor/presentation/vestidor_screen.dart';
-import '../shared/widgets/pantalla_pendiente.dart';
+import '../features/reservas_vestidor/presentation/mis_reservas_screen.dart';
+import '../features/reservas_vestidor/presentation/nueva_reserva_screen.dart';
 import 'home_shell.dart';
 
 /// Rutas de la aplicación, con los mismos nombres que la web.
@@ -21,9 +29,9 @@ import 'home_shell.dart';
 /// manda el backend enlazan a esas direcciones, así que más adelante un enlace
 /// profundo puede abrir la app en el mismo lugar sin inventar un mapa aparte.
 ///
-/// **La administración no está acá.** El panel de gestión (pedidos, caja,
-/// stock, devoluciones, bitácora, reportes) sigue siendo web: es trabajo de
-/// escritorio, con tablas y formularios largos. La app es para el cliente.
+/// El flujo de cliente está completo: catálogo, detalle, carrito, pedidos,
+/// devoluciones, favoritos, direcciones, sucursales, reservas y probador.
+/// La administración se suma aparte y filtrada por permisos.
 
 final _raiz = GlobalKey<NavigatorState>();
 final _catalogo = GlobalKey<NavigatorState>();
@@ -95,38 +103,37 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/prendas/:slug',
         parentNavigatorKey: _raiz,
-        builder: (context, estado) => PantallaPendiente(
-          titulo: 'Prenda',
-          descripcion:
-              'Detalle de "${estado.pathParameters['slug']}": fotos, tallas, colores, '
-              'disponibilidad por sucursal y botón de probador.',
-          endpoints: [
-            'GET /catalog/products/{slug}',
-            'GET /commerce/branches',
-            'PUT /commerce/cart/items/{variant_id}',
-          ],
+        builder: (context, estado) => PrendaScreen(
+          slug: estado.pathParameters['slug'] ?? '',
+          paraReserva: estado.uri.queryParameters['paraReserva'] == '1',
         ),
+      ),
+      GoRoute(
+        path: '/sucursales',
+        parentNavigatorKey: _raiz,
+        builder: (context, estado) => const SucursalesScreen(),
       ),
       GoRoute(
         path: '/prendas/:slug/vestidor',
         parentNavigatorKey: _raiz,
-        builder: (context, estado) =>
-            VestidorScreen(slug: estado.pathParameters['slug'] ?? ''),
+        builder: (context, estado) => VestidorScreen(
+          slug: estado.pathParameters['slug'] ?? '',
+          colorId: estado.uri.queryParameters['color'],
+        ),
       ),
       GoRoute(
         path: '/reservar',
         parentNavigatorKey: _raiz,
-        builder: (context, estado) => const PantallaPendiente(
-          titulo: 'Agendar visita',
-          descripcion: 'Elegir sucursal, horario y prendas para probarse (RF09, RF10).',
-          endpoints: [
-            'GET /reservations/availability',
-            'POST /reservations',
-          ],
-        ),
+        builder: (context, estado) => const NuevaReservaScreen(),
+      ),
+      GoRoute(
+        path: '/elegir-prendas',
+        parentNavigatorKey: _raiz,
+        builder: (context, estado) => const CatalogScreen(paraReserva: true),
       ),
       StatefulShellRoute.indexedStack(
-        builder: (context, estado, navegacion) => HomeShell(navegacion: navegacion),
+        builder: (context, estado, navegacion) =>
+            HomeShell(navegacion: navegacion),
         branches: [
           StatefulShellBranch(
             navigatorKey: _catalogo,
@@ -142,19 +149,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/carrito',
-                builder: (context, estado) => const PantallaPendiente(
-                  titulo: 'Carrito',
-                  descripcion:
-                      'Prendas elegidas, sucursal de retiro, dirección de entrega y '
-                      'pago (RF14, RF16). El checkout de Stripe se abre en el '
-                      'navegador y al volver la app concilia el pago.',
-                  endpoints: [
-                    'GET /commerce/cart',
-                    'POST /commerce/orders',
-                    'POST /commerce/orders/{id}/checkout',
-                    'POST /commerce/orders/{id}/payment-status',
-                  ],
-                ),
+                builder: (context, estado) => const CarritoScreen(),
               ),
             ],
           ),
@@ -163,14 +158,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/mi-cuenta/reservas',
-                builder: (context, estado) => const PantallaPendiente(
-                  titulo: 'Mis reservas',
-                  descripcion: 'Visitas agendadas y su estado (RF12).',
-                  endpoints: [
-                    'GET /reservations',
-                    'POST /reservations/{id}/cancel',
-                  ],
-                ),
+                builder: (context, estado) => const MisReservasScreen(),
               ),
             ],
           ),
@@ -183,45 +171,29 @@ final routerProvider = Provider<GoRouter>((ref) {
                 routes: [
                   GoRoute(
                     path: 'pedidos',
-                    builder: (context, estado) => const PantallaPendiente(
-                      titulo: 'Mis pedidos',
-                      descripcion:
-                          'Seguimiento del pedido etapa por etapa y solicitud de '
-                          'devolución de prendas entregadas (CU19).',
-                      endpoints: [
-                        'GET /commerce/orders',
-                        'GET /commerce/orders/{id}/returns',
-                        'POST /commerce/orders/{id}/returns',
-                      ],
-                    ),
+                    builder: (context, estado) => const PedidosScreen(),
+                    routes: [
+                      GoRoute(
+                        path: ':id',
+                        builder: (context, estado) => PedidoDetalleScreen(
+                          id: estado.pathParameters['id'] ?? '',
+                        ),
+                      ),
+                    ],
                   ),
-                  GoRoute(
-                    path: 'reservas',
-                    builder: (context, estado) => const PantallaPendiente(
-                      titulo: 'Mis reservas',
-                      descripcion: 'Visitas agendadas y su estado (RF12).',
-                      endpoints: [
-                        'GET /reservations',
-                        'POST /reservations/{id}/cancel',
-                      ],
-                    ),
-                  ),
+
                   GoRoute(
                     path: 'direcciones',
-                    builder: (context, estado) => const PantallaPendiente(
-                      titulo: 'Mis direcciones',
-                      descripcion:
-                          'Direcciones guardadas para no volver a escribirlas en cada compra.',
-                      endpoints: [
-                        'GET /users/me/addresses',
-                        'POST /users/me/addresses',
-                        'PATCH /users/me/addresses/{id}',
-                      ],
-                    ),
+                    builder: (context, estado) => const DireccionesScreen(),
+                  ),
+                  GoRoute(
+                    path: 'favoritos',
+                    builder: (context, estado) => const FavoritosScreen(),
                   ),
                   GoRoute(
                     path: 'seguridad',
-                    builder: (context, estado) => const CambiarContrasenaScreen(),
+                    builder: (context, estado) =>
+                        const CambiarContrasenaScreen(),
                   ),
                 ],
               ),
@@ -234,5 +206,9 @@ final routerProvider = Provider<GoRouter>((ref) {
 });
 
 /// Rutas que no tienen sentido sin sesión iniciada.
-const _rutasPrivadas = ['/mi-cuenta', '/carrito', '/reservar'];
-
+const _rutasPrivadas = [
+  '/mi-cuenta',
+  '/carrito',
+  '/reservar',
+  '/elegir-prendas',
+];

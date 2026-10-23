@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.mobile_marketplace_moda"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

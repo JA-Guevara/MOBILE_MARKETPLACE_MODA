@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../shared/formato.dart';
+import '../../reservas_vestidor/application/reservas_controller.dart';
 import '../application/catalog_controller.dart';
 import '../domain/producto.dart';
 
@@ -12,7 +14,9 @@ import '../domain/producto.dart';
 /// teléfono: en vez de una grilla con paginado, carga de a páginas mientras se
 /// hace scroll. La búsqueda y los filtros quedan arriba y se aplican de una.
 class CatalogScreen extends ConsumerStatefulWidget {
-  const CatalogScreen({super.key});
+  const CatalogScreen({super.key, this.paraReserva = false});
+
+  final bool paraReserva;
 
   @override
   ConsumerState<CatalogScreen> createState() => _CatalogScreenState();
@@ -48,7 +52,9 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
 
   void _aplicarFiltros({FiltrosCatalogo? cambios}) {
     final actuales = ref.read(catalogProvider).filtros;
-    ref.read(catalogProvider.notifier).aplicarFiltros(
+    ref
+        .read(catalogProvider.notifier)
+        .aplicarFiltros(
           cambios ?? actuales.copyWith(busqueda: _busqueda.text.trim()),
         );
   }
@@ -62,15 +68,36 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
     final estado = ref.watch(catalogProvider);
+    final seleccion = widget.paraReserva
+        ? ref.watch(nuevaReservaProvider)
+        : null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('FashionStore')),
+      appBar: AppBar(
+        title: Text(widget.paraReserva ? 'Elegir prendas' : 'FashionStore'),
+      ),
+      bottomNavigationBar: widget.paraReserva
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: FilledButton.icon(
+                  onPressed: () => context.go('/reservar'),
+                  icon: const Icon(Icons.event_available_outlined),
+                  label: Text(
+                    'Volver al agendamiento (${seleccion!.unidades})',
+                  ),
+                ),
+              ),
+            )
+          : null,
       body: RefreshIndicator(
         onRefresh: () => ref.read(catalogProvider.notifier).cargarInicial(),
         child: CustomScrollView(
           controller: _scroll,
           slivers: [
-            SliverToBoxAdapter(child: _Hero(tema: tema, total: estado.total)),
+            SliverToBoxAdapter(
+              child: _Hero(tema: tema, total: estado.total),
+            ),
             SliverToBoxAdapter(
               child: _Filtros(
                 busqueda: _busqueda,
@@ -98,7 +125,8 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                 hasScrollBody: false,
                 child: _Error(
                   mensaje: estado.error!,
-                  onReintentar: () => ref.read(catalogProvider.notifier).reintentar(),
+                  onReintentar: () =>
+                      ref.read(catalogProvider.notifier).reintentar(),
                 ),
               )
             else if (estado.productos.isEmpty)
@@ -117,7 +145,10 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                     childAspectRatio: 0.62,
                   ),
                   delegate: SliverChildBuilderDelegate(
-                    (context, indice) => _TarjetaProducto(producto: estado.productos[indice]),
+                    (context, indice) => _TarjetaProducto(
+                      producto: estado.productos[indice],
+                      paraReserva: widget.paraReserva,
+                    ),
                     childCount: estado.productos.length,
                   ),
                 ),
@@ -135,12 +166,18 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                   padding: const EdgeInsets.all(16),
                   child: _Error(
                     mensaje: estado.error!,
-                    onReintentar: () => ref.read(catalogProvider.notifier).cargarMas(),
+                    onReintentar: () =>
+                        ref.read(catalogProvider.notifier).cargarMas(),
                   ),
                 ),
               ),
             if (estado.recomendados.isNotEmpty)
-              SliverToBoxAdapter(child: _Recomendados(items: estado.recomendados)),
+              SliverToBoxAdapter(
+                child: _Recomendados(
+                  items: estado.recomendados,
+                  paraReserva: widget.paraReserva,
+                ),
+              ),
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
         ),
@@ -168,11 +205,19 @@ class _Hero extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('FASHIONSTORE · HECHO PARA TU DÍA', style: tema.textTheme.labelSmall),
+          Text(
+            'FASHIONSTORE · HECHO PARA TU DÍA',
+            style: tema.textTheme.labelSmall,
+          ),
           const SizedBox(height: 8),
-          Text('Vestí tu propia historia.', style: tema.textTheme.headlineSmall),
+          Text(
+            'Vestí tu propia historia.',
+            style: tema.textTheme.headlineSmall,
+          ),
           const SizedBox(height: 8),
-          const Text('Prendas que acompañan tu ritmo. Encontrá lo que va con vos.'),
+          const Text(
+            'Prendas que acompañan tu ritmo. Encontrá lo que va con vos.',
+          ),
         ],
       ),
     );
@@ -229,7 +274,9 @@ class _Filtros extends StatelessWidget {
               const SizedBox(width: 8),
               IconButton.filledTonal(
                 onPressed: alternarVisibles,
-                icon: Icon(visibles ? Icons.filter_list_off : Icons.filter_list),
+                icon: Icon(
+                  visibles ? Icons.filter_list_off : Icons.filter_list,
+                ),
                 tooltip: visibles ? 'Ocultar filtros' : 'Buscar y filtrar',
               ),
             ],
@@ -252,7 +299,8 @@ class _Filtros extends StatelessWidget {
                     return ChoiceChip(
                       label: Text(categoria.nombre),
                       selected: elegida,
-                      onSelected: (_) => onCategoria(elegida ? '' : categoria.id),
+                      onSelected: (_) =>
+                          onCategoria(elegida ? '' : categoria.id),
                     );
                   },
                 ),
@@ -285,15 +333,32 @@ class _Filtros extends StatelessWidget {
 }
 
 class _TarjetaProducto extends StatelessWidget {
-  const _TarjetaProducto({required this.producto});
+  const _TarjetaProducto({required this.producto, required this.paraReserva});
 
   final Producto producto;
+  final bool paraReserva;
+
+  Future<void> _abrir(BuildContext context) async {
+    final destino =
+        '/prendas/${producto.slug}'
+        '${paraReserva ? '?paraReserva=1' : ''}';
+    final agregada = await context.push<bool>(destino);
+    if (agregada == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Prenda agregada. Podés elegir otra o volver al agendamiento.',
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
     return InkWell(
-      onTap: () => context.push('/prendas/${producto.slug}'),
+      onTap: () => _abrir(context),
       borderRadius: BorderRadius.circular(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -308,7 +373,9 @@ class _TarjetaProducto extends StatelessWidget {
                     CachedNetworkImage(
                       imageUrl: producto.imagenUrl!,
                       fit: BoxFit.cover,
-                      placeholder: (_, __) => Container(color: tema.colorScheme.surfaceContainerHighest),
+                      placeholder: (_, __) => Container(
+                        color: tema.colorScheme.surfaceContainerHighest,
+                      ),
                       errorWidget: (_, __, ___) => _SinImagen(tema: tema),
                     )
                   else
@@ -330,7 +397,10 @@ class _TarjetaProducto extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(producto.categoria.toUpperCase(), style: tema.textTheme.labelSmall),
+          Text(
+            producto.categoria.toUpperCase(),
+            style: tema.textTheme.labelSmall,
+          ),
           Text(
             producto.nombre,
             maxLines: 2,
@@ -338,8 +408,10 @@ class _TarjetaProducto extends StatelessWidget {
             style: tema.textTheme.titleSmall,
           ),
           const SizedBox(height: 4),
-          Text('Bs ${producto.precioBase.toStringAsFixed(2)}',
-              style: tema.textTheme.bodyMedium),
+          Text(
+            Formato.moneda(producto.precioBase),
+            style: tema.textTheme.bodyMedium,
+          ),
         ],
       ),
     );
@@ -387,9 +459,26 @@ class _Etiqueta extends StatelessWidget {
 }
 
 class _Recomendados extends StatelessWidget {
-  const _Recomendados({required this.items});
+  const _Recomendados({required this.items, required this.paraReserva});
 
   final List<Recomendado> items;
+  final bool paraReserva;
+
+  Future<void> _abrir(BuildContext context, Recomendado item) async {
+    final destino =
+        '/prendas/${item.slug}'
+        '${paraReserva ? '?paraReserva=1' : ''}';
+    final agregada = await context.push<bool>(destino);
+    if (agregada == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Prenda agregada. Podés elegir otra o volver al agendamiento.',
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -413,7 +502,7 @@ class _Recomendados extends StatelessWidget {
               return SizedBox(
                 width: 140,
                 child: InkWell(
-                  onTap: () => context.push('/prendas/${item.slug}'),
+                  onTap: () => _abrir(context, item),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -426,19 +515,27 @@ class _Recomendados extends StatelessWidget {
                               ? CachedNetworkImage(
                                   imageUrl: item.imagenUrl!,
                                   fit: BoxFit.cover,
-                                  errorWidget: (_, __, ___) => _SinImagen(tema: tema),
+                                  errorWidget: (_, __, ___) =>
+                                      _SinImagen(tema: tema),
                                 )
                               : _SinImagen(tema: tema),
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(item.categoria.toUpperCase(), style: tema.textTheme.labelSmall),
-                      Text(item.nombre,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: tema.textTheme.titleSmall),
-                      Text('Bs ${item.precioBase.toStringAsFixed(2)}',
-                          style: tema.textTheme.bodySmall),
+                      Text(
+                        item.categoria.toUpperCase(),
+                        style: tema.textTheme.labelSmall,
+                      ),
+                      Text(
+                        item.nombre,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: tema.textTheme.titleSmall,
+                      ),
+                      Text(
+                        Formato.moneda(item.precioBase),
+                        style: tema.textTheme.bodySmall,
+                      ),
                     ],
                   ),
                 ),
@@ -470,8 +567,10 @@ class _Error extends StatelessWidget {
             const SizedBox(height: 12),
             FilledButton.tonal(
               onPressed: onReintentar,
-              child: Text('Reintentar',
-                  style: TextStyle(color: tema.colorScheme.error)),
+              child: Text(
+                'Reintentar',
+                style: TextStyle(color: tema.colorScheme.error),
+              ),
             ),
           ],
         ),
@@ -497,7 +596,10 @@ class _Vacio extends StatelessWidget {
             const SizedBox(height: 8),
             const Text('Probá cambiar los filtros o volvé más tarde.'),
             const SizedBox(height: 12),
-            FilledButton.tonal(onPressed: onLimpiar, child: const Text('Ver todo')),
+            FilledButton.tonal(
+              onPressed: onLimpiar,
+              child: const Text('Ver todo'),
+            ),
           ],
         ),
       ),

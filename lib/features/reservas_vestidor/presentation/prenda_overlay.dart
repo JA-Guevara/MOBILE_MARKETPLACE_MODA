@@ -29,7 +29,11 @@ class PrendaOverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (cuerpo.isEmpty) return;
+    if (cuerpo.length < 33 ||
+        !enRango(cuerpo[hombroIzquierdo]) ||
+        !enRango(cuerpo[hombroDerecho])) {
+      return;
+    }
     final caja = CajaVideo(
       videoAncho: this.caja.videoAncho,
       videoAlto: this.caja.videoAlto,
@@ -39,10 +43,15 @@ class PrendaOverlayPainter extends CustomPainter {
     );
     final puntos = <Punto>[];
     for (final punto in cuerpo) {
-      final proyectado = videoAPantalla(punto.x, punto.y, caja);
-      puntos.add(Punto(proyectado.px, proyectado.py));
+      if (!enRango(punto)) {
+        puntos.add(const Punto(0, 0));
+      } else {
+        final proyectado = videoAPantalla(punto.x, punto.y, caja);
+        puntos.add(Punto(proyectado.px, proyectado.py));
+      }
     }
-    dibujarPrenda(canvas, puntos, opciones);
+    final completados = estimarOcultos(puntos, (i) => enRango(cuerpo[i]));
+    dibujarPrenda(canvas, completados, opciones);
   }
 
   @override

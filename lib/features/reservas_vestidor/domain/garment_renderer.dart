@@ -134,8 +134,11 @@ List<Punto> estimarOcultos(List<Punto> pts, bool Function(int i) visible) {
   final distancia = largo(resta(hi, hd));
   final ancho = distancia == 0 ? 1 : distancia;
   final cruz = unitario(resta(hi, hd));
-  // Perpendicular a la línea de hombros: hacia los pies.
-  final abajo = Punto(-cruz.y, cruz.x);
+  // Perpendicular a la línea de hombros: hacia los pies (Y positiva en pantalla).
+  var abajo = Punto(-cruz.y, cruz.x);
+  if (abajo.y < 0) {
+    abajo = Punto(-abajo.x, -abajo.y);
+  }
 
   if (!visible(P.caderaIzq) || !visible(P.caderaDer)) {
     salida[P.caderaIzq] = suma(suma(hi, escala(abajo, ancho * 1.3)), escala(cruz, -ancho * 0.12));
@@ -168,10 +171,14 @@ EjesPrenda? ejes(List<Punto> pts) {
   if (hi == null || hd == null || ci == null || cd == null) return null;
   final ancho = largo(resta(hi, hd));
   if (ancho < 4) return null;
+  var abajo = unitario(resta(medio(ci, cd), medio(hi, hd)));
+  if (abajo.y < 0) {
+    abajo = Punto(-abajo.x, -abajo.y);
+  }
   return EjesPrenda(
     ancho: ancho,
     cruz: unitario(resta(hi, hd)),
-    abajo: unitario(resta(medio(ci, cd), medio(hi, hd))),
+    abajo: abajo,
     centroHombros: medio(hi, hd),
     centroCaderas: medio(ci, cd),
   );

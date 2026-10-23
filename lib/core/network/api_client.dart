@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../config/environment.dart';
 import 'api_exception.dart';
+import 'log_interceptor.dart';
 
 /// Único punto por donde la app habla con el backend.
 ///
@@ -15,8 +16,11 @@ class ApiClient {
             Dio(BaseOptions(
               baseUrl: Environment.apiUrl,
               // Un teléfono cambia de red en medio de una petición; sin tiempo
-              // límite la pantalla se queda cargando para siempre.
-              connectTimeout: const Duration(seconds: 15),
+              // límite la pantalla se queda cargando para siempre. 30 s y no
+              // 15: el backend de Railway se duerme y el primer pedido del día
+              // paga el arranque del contenedor, que pasa de los 15 s y hacía
+              // fallar la primera pantalla aunque el servidor estuviera bien.
+              connectTimeout: const Duration(seconds: 30),
               receiveTimeout: const Duration(seconds: 30),
               headers: {'Accept': 'application/json'},
               // El error se traduce acá, no en cada pantalla.
@@ -24,6 +28,14 @@ class ApiClient {
             ));
 
   final Dio dio;
+
+  /// Enciende el registro de peticiones en la consola. Se llama al construir
+  /// el cliente y no hace nada en release.
+  void registrarEnConsola() {
+    if (RegistroInterceptor.habilitado) {
+      dio.interceptors.add(const RegistroInterceptor());
+    }
+  }
 
   Future<T> get<T>(String path, {Map<String, dynamic>? query}) =>
       _pedir<T>(() => dio.get(path, queryParameters: _limpiar(query)));
@@ -37,6 +49,15 @@ class ApiClient {
 
   Future<T> delete<T>(String path, {Object? body}) =>
       _pedir<T>(() => dio.delete(path, data: body));
+
+  /// Para comandos cuyo contrato confirma con `{ success: true, data: null }`.
+  /// No los pasa por el deserializador genérico: convertir `null` a un mapa
+  /// fue la causa de que el botón del carrito pareciera no hacer nada.
+  Future<void> putSinContenido(String path, {Object? body}) =>
+      _enviarSinContenido(() => dio.put(path, data: body));
+
+  Future<void> deleteSinContenido(String path, {Object? body}) =>
+      _enviarSinContenido(() => dio.delete(path, data: body));
 
   /// Sube un `FormData` (multipart): imágenes, Excel, la foto del probador IA.
   /// Devuelve el `data` del envoltorio como el resto de los endpoints.
@@ -72,6 +93,16 @@ class ApiClient {
       }
       // Algunos endpoints (webhooks, health) responden sin envoltorio.
       return cuerpo as T;
+    } on DioException catch (error) {
+      throw ApiException.from(error);
+    }
+  }
+
+  Future<void> _enviarSinContenido(
+    Future<Response<dynamic>> Function() peticion,
+  ) async {
+    try {
+      await peticion();
     } on DioException catch (error) {
       throw ApiException.from(error);
     }

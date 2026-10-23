@@ -19,8 +19,7 @@ class Environment {
     defaultValue: 'https://backendmarketplacemoda-production.up.railway.app/api/v1',
   );
 
-  /// El checkout de Stripe vuelve a las páginas del frontend web, así que la
-  /// app necesita saber cuál es para reconocer el retorno.
+  /// Origen web usado por otros enlaces compartidos de la tienda.
   static const String webUrl = String.fromEnvironment(
     'WEB_URL',
     defaultValue: 'https://frontendmarketplacemoda-production.up.railway.app',

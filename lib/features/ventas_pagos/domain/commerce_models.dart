@@ -2,9 +2,8 @@
 /// Los nombres de campo coinciden uno a uno con el contrato del backend.
 library;
 
-double _monto(dynamic valor) => valor is num
-    ? valor.toDouble()
-    : (double.tryParse('$valor') ?? 0);
+double _monto(dynamic valor) =>
+    valor is num ? valor.toDouble() : (double.tryParse('$valor') ?? 0);
 
 Map<String, int> _unidades(dynamic valor) {
   if (valor is! Map) return const {};
@@ -15,17 +14,21 @@ Map<String, int> _unidades(dynamic valor) {
 
 /// Sucursal disponible para una compra o una operación de caja.
 class Sucursal {
-  const Sucursal({required this.id, required this.nombre, required this.direccion});
+  const Sucursal({
+    required this.id,
+    required this.nombre,
+    required this.direccion,
+  });
 
   final String id;
   final String nombre;
   final String direccion;
 
   factory Sucursal.desdeJson(Map<String, dynamic> json) => Sucursal(
-        id: json['id'] as String? ?? '',
-        nombre: json['name'] as String? ?? '',
-        direccion: json['address'] as String? ?? '',
-      );
+    id: json['id'] as String? ?? '',
+    nombre: json['name'] as String? ?? '',
+    direccion: json['address'] as String? ?? '',
+  );
 }
 
 /// Caja habilitada dentro de una sucursal.
@@ -43,11 +46,11 @@ class PuntoCaja {
   final String sucursalId;
 
   factory PuntoCaja.desdeJson(Map<String, dynamic> json) => PuntoCaja(
-        id: json['id'] as String? ?? '',
-        codigo: json['code'] as String? ?? '',
-        nombre: json['name'] as String? ?? '',
-        sucursalId: json['branch_id'] as String? ?? '',
-      );
+    id: json['id'] as String? ?? '',
+    codigo: json['code'] as String? ?? '',
+    nombre: json['name'] as String? ?? '',
+    sucursalId: json['branch_id'] as String? ?? '',
+  );
 }
 
 /// Ítem del carrito (web `CartItem`).
@@ -79,18 +82,18 @@ class ItemCarrito {
   final double lineTotal;
 
   factory ItemCarrito.desdeJson(Map<String, dynamic> json) => ItemCarrito(
-        variantId: json['variant_id'] as String? ?? '',
-        productId: json['product_id'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        sku: json['sku'] as String? ?? '',
-        size: json['size'] as String? ?? '',
-        color: json['color'] as String? ?? '',
-        imageUrl: json['image_url'] as String?,
-        unitPrice: _monto(json['unit_price']),
-        quantity: (json['quantity'] as num?)?.toInt() ?? 0,
-        available: (json['available'] as num?)?.toInt() ?? 0,
-        lineTotal: _monto(json['line_total']),
-      );
+    variantId: json['variant_id'] as String? ?? '',
+    productId: json['product_id'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    sku: json['sku'] as String? ?? '',
+    size: json['size'] as String? ?? '',
+    color: json['color'] as String? ?? '',
+    imageUrl: json['image_url'] as String?,
+    unitPrice: _monto(json['unit_price']),
+    quantity: (json['quantity'] as num?)?.toInt() ?? 0,
+    available: (json['available'] as num?)?.toInt() ?? 0,
+    lineTotal: _monto(json['line_total']),
+  );
 }
 
 /// Descuento de promoción aplicado al carrito (web `CartDiscount`).
@@ -111,7 +114,8 @@ class DescuentoCarrito {
   final double amount;
   final String? message;
 
-  factory DescuentoCarrito.desdeJson(Map<String, dynamic> json) => DescuentoCarrito(
+  factory DescuentoCarrito.desdeJson(Map<String, dynamic> json) =>
+      DescuentoCarrito(
         promotionId: json['promotion_id'] as String? ?? '',
         name: json['name'] as String? ?? '',
         code: json['code'] as String?,
@@ -142,18 +146,18 @@ class Carrito {
   final String currency;
 
   factory Carrito.desdeJson(Map<String, dynamic> json) => Carrito(
-        items: (json['items'] as List<dynamic>? ?? const [])
-            .map((e) => ItemCarrito.desdeJson(e as Map<String, dynamic>))
-            .toList(),
-        subtotal: _monto(json['subtotal']),
-        discountTotal: _monto(json['discount_total']),
-        discounts: (json['discounts'] as List<dynamic>? ?? const [])
-            .map((e) => DescuentoCarrito.desdeJson(e as Map<String, dynamic>))
-            .toList(),
-        couponCode: json['coupon_code'] as String?,
-        total: _monto(json['total']),
-        currency: json['currency'] as String? ?? 'BOB',
-      );
+    items: (json['items'] as List<dynamic>? ?? const [])
+        .map((e) => ItemCarrito.desdeJson(e as Map<String, dynamic>))
+        .toList(),
+    subtotal: _monto(json['subtotal']),
+    discountTotal: _monto(json['discount_total']),
+    discounts: (json['discounts'] as List<dynamic>? ?? const [])
+        .map((e) => DescuentoCarrito.desdeJson(e as Map<String, dynamic>))
+        .toList(),
+    couponCode: json['coupon_code'] as String?,
+    total: _monto(json['total']),
+    currency: json['currency'] as String? ?? 'BOB',
+  );
 
   bool get vacio => items.isEmpty;
 }
@@ -176,7 +180,8 @@ class DireccionEntrega {
   final String? country;
   final String? postalCode;
 
-  factory DireccionEntrega.desdeJson(Map<String, dynamic> json) => DireccionEntrega(
+  factory DireccionEntrega.desdeJson(Map<String, dynamic> json) =>
+      DireccionEntrega(
         recipient: json['recipient'] as String?,
         phone: json['phone'] as String?,
         line1: json['line1'] as String?,
@@ -186,13 +191,13 @@ class DireccionEntrega {
       );
 
   Map<String, dynamic> aJson() => {
-        'recipient': recipient,
-        'phone': phone,
-        'line1': line1,
-        'city': city,
-        'country': country,
-        'postal_code': postalCode,
-      };
+    'recipient': recipient,
+    'phone': phone,
+    'line1': line1,
+    'city': city,
+    'country': country,
+    'postal_code': postalCode,
+  };
 }
 
 /// Ítem de un pedido (web `OrderItem`).
@@ -224,18 +229,18 @@ class ItemPedido {
   final double lineTotal;
 
   factory ItemPedido.desdeJson(Map<String, dynamic> json) => ItemPedido(
-        variantId: json['variant_id'] as String? ?? '',
-        productId: json['product_id'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        sku: json['sku'] as String? ?? '',
-        size: json['size'] as String? ?? '',
-        color: json['color'] as String? ?? '',
-        imageUrl: json['image_url'] as String?,
-        unitPrice: _monto(json['unit_price']),
-        quantity: (json['quantity'] as num?)?.toInt() ?? 0,
-        available: (json['available'] as num?)?.toInt() ?? 0,
-        lineTotal: _monto(json['line_total']),
-      );
+    variantId: json['variant_id'] as String? ?? '',
+    productId: json['product_id'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    sku: json['sku'] as String? ?? '',
+    size: json['size'] as String? ?? '',
+    color: json['color'] as String? ?? '',
+    imageUrl: json['image_url'] as String?,
+    unitPrice: _monto(json['unit_price']),
+    quantity: (json['quantity'] as num?)?.toInt() ?? 0,
+    available: (json['available'] as num?)?.toInt() ?? 0,
+    lineTotal: _monto(json['line_total']),
+  );
 }
 
 /// Dto de un pedido completo (web `Order`).
@@ -287,35 +292,40 @@ class Pedido {
   final bool hasOpenReturn;
 
   factory Pedido.desdeJson(Map<String, dynamic> json) => Pedido(
-        id: json['id'] as String? ?? '',
-        number: json['number'] as String? ?? '',
-        customerEmail: json['customer_email'] as String? ?? '',
-        branchId: json['branch_id'] as String? ?? '',
-        status: json['status'] as String? ?? '',
-        paymentStatus: json['payment_status'] as String? ?? '',
-        paymentMethod: json['payment_method'] as String? ?? '',
-        total: _monto(json['total']),
-        currency: json['currency'] as String? ?? 'BOB',
-        address: DireccionEntrega.desdeJson(
-            json['address'] is Map<String, dynamic> ? json['address'] as Map<String, dynamic> : const {}),
-        items: (json['items'] as List<dynamic>? ?? const [])
-            .map((e) => ItemPedido.desdeJson(e as Map<String, dynamic>))
-            .toList(),
-        tracking: (json['tracking'] as List<dynamic>? ?? const [])
-            .map((e) => IngresoTracking.desdeJson(e as Map<String, dynamic>))
-            .toList(),
-        createdAt: json['created_at'] as String? ?? '',
-        salesChannel: json['sales_channel'] as String?,
-        paymentReference: json['payment_reference'] as String?,
-        subtotal: json['subtotal'] != null ? _monto(json['subtotal']) : null,
-        discountTotal: json['discount_total'] != null ? _monto(json['discount_total']) : null,
-        discounts: (json['discounts'] as List<dynamic>? ?? const [])
-            .map((e) => DescuentoCarrito.desdeJson(e as Map<String, dynamic>))
-            .toList(),
-        carrier: json['carrier'] as String?,
-        trackingNumber: json['tracking_number'] as String?,
-        hasOpenReturn: json['has_open_return'] as bool? ?? false,
-      );
+    id: json['id'] as String? ?? '',
+    number: json['number'] as String? ?? '',
+    customerEmail: json['customer_email'] as String? ?? '',
+    branchId: json['branch_id'] as String? ?? '',
+    status: json['status'] as String? ?? '',
+    paymentStatus: json['payment_status'] as String? ?? '',
+    paymentMethod: json['payment_method'] as String? ?? '',
+    total: _monto(json['total']),
+    currency: json['currency'] as String? ?? 'BOB',
+    address: DireccionEntrega.desdeJson(
+      json['address'] is Map<String, dynamic>
+          ? json['address'] as Map<String, dynamic>
+          : const {},
+    ),
+    items: (json['items'] as List<dynamic>? ?? const [])
+        .map((e) => ItemPedido.desdeJson(e as Map<String, dynamic>))
+        .toList(),
+    tracking: (json['tracking'] as List<dynamic>? ?? const [])
+        .map((e) => IngresoTracking.desdeJson(e as Map<String, dynamic>))
+        .toList(),
+    createdAt: json['created_at'] as String? ?? '',
+    salesChannel: json['sales_channel'] as String?,
+    paymentReference: json['payment_reference'] as String?,
+    subtotal: json['subtotal'] != null ? _monto(json['subtotal']) : null,
+    discountTotal: json['discount_total'] != null
+        ? _monto(json['discount_total'])
+        : null,
+    discounts: (json['discounts'] as List<dynamic>? ?? const [])
+        .map((e) => DescuentoCarrito.desdeJson(e as Map<String, dynamic>))
+        .toList(),
+    carrier: json['carrier'] as String?,
+    trackingNumber: json['tracking_number'] as String?,
+    hasOpenReturn: json['has_open_return'] as bool? ?? false,
+  );
 
   String get etiquetaEstado => etiquetaPedido(status);
   String get etiquetaPago => etiquetaPagoStatus(paymentStatus);
@@ -329,6 +339,8 @@ class Devolucion {
     required this.orderId,
     required this.branchId,
     required this.status,
+    this.kind = 'return',
+    this.replacementSummary,
     required this.reason,
     required this.items,
     required this.refundAmount,
@@ -347,6 +359,8 @@ class Devolucion {
   final String orderId;
   final String branchId;
   final String status;
+  final String kind;
+  final String? replacementSummary;
   final String reason;
   final List<ItemPedido> items;
   final double refundAmount;
@@ -361,25 +375,57 @@ class Devolucion {
   final String? salesChannel;
 
   factory Devolucion.desdeJson(Map<String, dynamic> json) => Devolucion(
-        id: json['id'] as String? ?? '',
-        orderId: json['order_id'] as String? ?? '',
-        branchId: json['branch_id'] as String? ?? '',
-        status: json['status'] as String? ?? '',
-        reason: json['reason'] as String? ?? '',
-        items: (json['items'] as List<dynamic>? ?? const [])
-            .map((e) => ItemPedido.desdeJson(e as Map<String, dynamic>))
-            .toList(),
-        refundAmount: _monto(json['refund_amount']),
-        currency: json['currency'] as String? ?? 'BOB',
-        resolutionNote: json['resolution_note'] as String?,
-        resolvedAt: json['resolved_at'] as String?,
-        createdAt: json['created_at'] as String? ?? '',
-        orderNumber: json['order_number'] as String?,
-        customerEmail: json['customer_email'] as String?,
-        customerName: json['customer_name'] as String?,
-        branchName: json['branch_name'] as String?,
-        salesChannel: json['sales_channel'] as String?,
-      );
+    id: json['id'] as String? ?? '',
+    orderId: json['order_id'] as String? ?? '',
+    branchId: json['branch_id'] as String? ?? '',
+    status: json['status'] as String? ?? '',
+    kind: json['kind'] as String? ?? 'return',
+    replacementSummary: _replacementSummary(json['items']),
+    reason: json['reason'] as String? ?? '',
+    items: (json['items'] as List<dynamic>? ?? const [])
+        .map((e) => ItemPedido.desdeJson(e as Map<String, dynamic>))
+        .toList(),
+    refundAmount: _monto(json['refund_amount']),
+    currency: json['currency'] as String? ?? 'BOB',
+    resolutionNote: json['resolution_note'] as String?,
+    resolvedAt: json['resolved_at'] as String?,
+    createdAt: json['created_at'] as String? ?? '',
+    orderNumber: json['order_number'] as String?,
+    customerEmail: json['customer_email'] as String?,
+    customerName: json['customer_name'] as String?,
+    branchName: json['branch_name'] as String?,
+    salesChannel: json['sales_channel'] as String?,
+  );
+}
+
+String? _replacementSummary(Object? items) {
+  if (items is! List || items.isEmpty || items.first is! Map) return null;
+  final item = items.first as Map;
+  if (item['replacement_variant_id'] == null) return null;
+  return '${item['replacement_name']} · ${item['replacement_size']} · ${item['replacement_color']}';
+}
+
+class OpcionCambio {
+  const OpcionCambio({
+    required this.variantId,
+    required this.productName,
+    required this.size,
+    required this.color,
+    required this.available,
+  });
+  final String variantId;
+  final String productName;
+  final String size;
+  final String color;
+  final int available;
+
+  factory OpcionCambio.desdeJson(Map<String, dynamic> json) => OpcionCambio(
+    variantId: json['variant_id'] as String,
+    productName: json['product_name'] as String,
+    size: json['size'] as String,
+    color: json['color'] as String,
+    available: json['available'] as int,
+  );
 }
 
 /// Promoción (web `Promotion`).
@@ -423,31 +469,35 @@ class Promocion {
   final int? perUserLimit;
 
   factory Promocion.desdeJson(Map<String, dynamic> json) => Promocion(
-        id: json['id'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        description: json['description'] as String? ?? '',
-        discountType: json['discount_type'] as String? ?? '',
-        discountValue: _monto(json['discount_value']),
-        minimumOrder: _monto(json['minimum_order']),
-        isActive: json['is_active'] as bool? ?? false,
-        code: json['code'] as String?,
-        categoryId: json['category_id'] as String?,
-        productId: json['product_id'] as String?,
-        customerScope: json['customer_scope'] as String? ?? 'all',
-        minimumPaidOrders: (json['minimum_paid_orders'] as num?)?.toInt() ?? 0,
-        startsAt: json['starts_at'] as String?,
-        endsAt: json['ends_at'] as String?,
-        maxUses: json['max_uses'] != null ? (json['max_uses'] as num).toInt() : null,
-        usesCount: (json['uses_count'] as num?)?.toInt() ?? 0,
-        perUserLimit: json['per_user_limit'] != null ? (json['per_user_limit'] as num).toInt() : null,
-      );
+    id: json['id'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    description: json['description'] as String? ?? '',
+    discountType: json['discount_type'] as String? ?? '',
+    discountValue: _monto(json['discount_value']),
+    minimumOrder: _monto(json['minimum_order']),
+    isActive: json['is_active'] as bool? ?? false,
+    code: json['code'] as String?,
+    categoryId: json['category_id'] as String?,
+    productId: json['product_id'] as String?,
+    customerScope: json['customer_scope'] as String? ?? 'all',
+    minimumPaidOrders: (json['minimum_paid_orders'] as num?)?.toInt() ?? 0,
+    startsAt: json['starts_at'] as String?,
+    endsAt: json['ends_at'] as String?,
+    maxUses: json['max_uses'] != null
+        ? (json['max_uses'] as num).toInt()
+        : null,
+    usesCount: (json['uses_count'] as num?)?.toInt() ?? 0,
+    perUserLimit: json['per_user_limit'] != null
+        ? (json['per_user_limit'] as num).toInt()
+        : null,
+  );
 
   String get etiquetaTipo => switch (discountType) {
-        'percent' => 'Porcentaje',
-        'fixed' => 'Monto fijo',
-        'free_shipping' => 'Envío gratis',
-        _ => discountType,
-      };
+    'percent' => 'Porcentaje',
+    'fixed' => 'Monto fijo',
+    'free_shipping' => 'Envío gratis',
+    _ => discountType,
+  };
 }
 
 /// Favorito (web `Favorite`).
@@ -473,15 +523,15 @@ class Favorito {
   final String? imageUrl;
 
   factory Favorito.desdeJson(Map<String, dynamic> json) => Favorito(
-        id: json['id'] as String? ?? '',
-        productId: json['product_id'] as String? ?? '',
-        slug: json['slug'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        basePrice: _monto(json['base_price']),
-        stockAlert: json['stock_alert'] as bool? ?? false,
-        priceAlert: json['price_alert'] as bool? ?? false,
-        imageUrl: json['image_url'] as String?,
-      );
+    id: json['id'] as String? ?? '',
+    productId: json['product_id'] as String? ?? '',
+    slug: json['slug'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    basePrice: _monto(json['base_price']),
+    stockAlert: json['stock_alert'] as bool? ?? false,
+    priceAlert: json['price_alert'] as bool? ?? false,
+    imageUrl: json['image_url'] as String?,
+  );
 }
 
 /// Estado de favorito (web `FavoriteState`).
@@ -497,10 +547,10 @@ class EstadoFavorito {
   final bool priceAlert;
 
   factory EstadoFavorito.desdeJson(Map<String, dynamic> json) => EstadoFavorito(
-        isFavorite: json['is_favorite'] as bool? ?? false,
-        stockAlert: json['stock_alert'] as bool? ?? false,
-        priceAlert: json['price_alert'] as bool? ?? false,
-      );
+    isFavorite: json['is_favorite'] as bool? ?? false,
+    stockAlert: json['stock_alert'] as bool? ?? false,
+    priceAlert: json['price_alert'] as bool? ?? false,
+  );
 }
 
 /// Ítem de tracking de un pedido (web `OrderTrackingItem`).
@@ -515,7 +565,8 @@ class IngresoTracking {
   final String note;
   final String date;
 
-  factory IngresoTracking.desdeJson(Map<String, dynamic> json) => IngresoTracking(
+  factory IngresoTracking.desdeJson(Map<String, dynamic> json) =>
+      IngresoTracking(
         status: json['status'] as String? ?? '',
         note: json['note'] as String? ?? '',
         date: json['date'] as String? ?? '',
@@ -567,7 +618,9 @@ class BusquedaMostrador {
 
   factory BusquedaMostrador.desdeJson(Map<String, dynamic> json) =>
       BusquedaMostrador(
-        pedido: Pedido.desdeJson(json['order'] as Map<String, dynamic>? ?? const {}),
+        pedido: Pedido.desdeJson(
+          json['order'] as Map<String, dynamic>? ?? const {},
+        ),
         puedeSolicitar: json['can_request'] as bool? ?? false,
         motivo: json['reason'] as String?,
         unidades: _unidades(json['units']),

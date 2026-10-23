@@ -50,7 +50,12 @@ class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(48),
+          // Alto suficiente para el dedo, pero **sin** fijar el ancho: un
+          // `Size.fromHeight` pide ancho infinito y revienta el layout apenas
+          // el boton cae en un contexto sin ancho definido (una `Row`, una
+          // lista horizontal). En las pantallas de formulario el boton ya es
+          // hijo directo de un `ListView`, que le da el ancho completo.
+          minimumSize: const Size(64, 48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),

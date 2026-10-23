@@ -129,6 +129,19 @@ void main() {
       expect(poligonoTorso(completado, FormaPrenda.remera), isNotNull);
     });
 
+    test('en pose reflejada (hombroIzq.x < hombroDer.x) los puntos ocultos siguen yendo hacia abajo', () {
+      final pts = List<Punto>.generate(33, (_) => const Punto(_banda, _banda));
+      pts[P.hombroIzq] = const Punto(250, 200);
+      pts[P.hombroDer] = const Punto(350, 200);
+      bool soloHombros(int i) => i == P.hombroIzq || i == P.hombroDer;
+      final completado = estimarOcultos(pts, soloHombros);
+
+      expect(completado[P.caderaIzq].y, greaterThan(pts[P.hombroIzq].y));
+      expect(completado[P.codoIzq].y, greaterThan(pts[P.hombroIzq].y));
+      expect(completado[P.munecaIzq].y, greaterThan(completado[P.codoIzq].y));
+      expect(completado[P.rodillaIzq].y, greaterThan(completado[P.caderaIzq].y));
+    });
+
     test('respeta los puntos que sí se ven', () {
       final pts = cuerpo();
       final completado = estimarOcultos(pts, (_) => true);

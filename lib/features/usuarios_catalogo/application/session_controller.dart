@@ -173,6 +173,9 @@ final Provider<TokenStore> tokenStoreProvider = Provider<TokenStore>((ref) => To
 // sí y Dart no puede inferirlo solo.
 final Provider<ApiClient> apiClientProvider = Provider<ApiClient>((ref) {
   final cliente = ApiClient();
+  // El registro va primero para que la linea del pedido salga antes del
+  // bearer y del reintento por 401; asi el orden en consola es el real.
+  cliente.registrarEnConsola();
   cliente.dio.interceptors.add(AuthInterceptor(
     dio: cliente.dio,
     accessToken: () => ref.read(sessionProvider.notifier).accessToken,

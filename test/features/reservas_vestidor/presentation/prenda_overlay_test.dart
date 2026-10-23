@@ -32,7 +32,11 @@ const opciones = OpcionesDibujo(forma: FormaPrenda.remera, color: '#74394e');
 
 void main() {
   test('con el cuerpo vacío no pinta nada', () {
-    final painter = PrendaOverlayPainter(cuerpo: const [], opciones: opciones, caja: caja);
+    final painter = PrendaOverlayPainter(
+      cuerpo: const [],
+      opciones: opciones,
+      caja: caja,
+    );
     final recorder = ui.PictureRecorder();
     painter.paint(Canvas(recorder), _tamano);
     final picture = recorder.endRecording();
@@ -40,11 +44,18 @@ void main() {
   });
 
   test('con una persona pinta la prenda', () async {
-    final painter = PrendaOverlayPainter(cuerpo: _cuerpo(), opciones: opciones, caja: caja);
+    final painter = PrendaOverlayPainter(
+      cuerpo: _cuerpo(),
+      opciones: opciones,
+      caja: caja,
+    );
     final recorder = ui.PictureRecorder();
     painter.paint(Canvas(recorder), _tamano);
     final picture = recorder.endRecording();
-    final imagen = await picture.toImage(_tamano.width.toInt(), _tamano.height.toInt());
+    final imagen = await picture.toImage(
+      _tamano.width.toInt(),
+      _tamano.height.toInt(),
+    );
     picture.dispose();
     final datos = await imagen.toByteData(format: ui.ImageByteFormat.rawRgba);
 
@@ -54,16 +65,89 @@ void main() {
     for (var i = 3; i < pixeles.length; i += 4) {
       if (pixeles[i] > 0) conAlpha++;
     }
-    expect(conAlpha, greaterThan(500)); // hay una prenda dibujada, no un lienzo vacío
+    expect(
+      conAlpha,
+      greaterThan(500),
+    ); // hay una prenda dibujada, no un lienzo vacío
     imagen.dispose();
   });
 
+  test(
+    'sin hombros confiables no dibuja una prenda fuera del cuerpo',
+    () async {
+      final cuerpo = _cuerpo()..[hombroIzquierdo] = const Landmark(-1, -1, 0);
+      final recorder = ui.PictureRecorder();
+      PrendaOverlayPainter(
+        cuerpo: cuerpo,
+        opciones: opciones,
+        caja: caja,
+      ).paint(Canvas(recorder), _tamano);
+      final picture = recorder.endRecording();
+      final imagen = await picture.toImage(
+        _tamano.width.toInt(),
+        _tamano.height.toInt(),
+      );
+      final pixeles = (await imagen.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      ))!.buffer.asUint8List();
+      expect(
+        [
+          for (var i = 3; i < pixeles.length; i += 4) pixeles[i],
+        ].every((alpha) => alpha == 0),
+        isTrue,
+      );
+      imagen.dispose();
+      picture.dispose();
+    },
+  );
+
+  test('estima caderas fuera del encuadre y conserva la silueta', () async {
+    final cuerpo = _cuerpo()
+      ..[caderaIzquierda] = const Landmark(-1, -1, 0)
+      ..[caderaDerecha] = const Landmark(-1, -1, 0);
+    final recorder = ui.PictureRecorder();
+    PrendaOverlayPainter(
+      cuerpo: cuerpo,
+      opciones: opciones,
+      caja: caja,
+    ).paint(Canvas(recorder), _tamano);
+    final picture = recorder.endRecording();
+    final imagen = await picture.toImage(
+      _tamano.width.toInt(),
+      _tamano.height.toInt(),
+    );
+    final pixeles = (await imagen.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    ))!.buffer.asUint8List();
+    expect(
+      [
+        for (var i = 3; i < pixeles.length; i += 4) pixeles[i],
+      ].where((alpha) => alpha > 0).length,
+      greaterThan(500),
+    );
+    imagen.dispose();
+    picture.dispose();
+  });
+
   test('debe repintar cuando cambia la pose', () {
-    final painter = PrendaOverlayPainter(cuerpo: _cuerpo(), opciones: opciones, caja: caja);
-    final otroCuerpo = _cuerpo()..[hombroIzquierdo] = const Landmark(0.4, 0.28, 0.99);
-    final otro = PrendaOverlayPainter(cuerpo: otroCuerpo, opciones: opciones, caja: caja);
+    final painter = PrendaOverlayPainter(
+      cuerpo: _cuerpo(),
+      opciones: opciones,
+      caja: caja,
+    );
+    final otroCuerpo = _cuerpo()
+      ..[hombroIzquierdo] = const Landmark(0.4, 0.28, 0.99);
+    final otro = PrendaOverlayPainter(
+      cuerpo: otroCuerpo,
+      opciones: opciones,
+      caja: caja,
+    );
     expect(painter.shouldRepaint(otro), isTrue);
-    final igual = PrendaOverlayPainter(cuerpo: _cuerpo(), opciones: opciones, caja: caja);
+    final igual = PrendaOverlayPainter(
+      cuerpo: _cuerpo(),
+      opciones: opciones,
+      caja: caja,
+    );
     expect(painter.shouldRepaint(igual), isFalse);
   });
 }

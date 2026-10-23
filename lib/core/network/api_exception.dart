@@ -21,9 +21,7 @@ class ApiException implements Exception {
   factory ApiException.from(DioException error) {
     final respuesta = error.response;
     if (respuesta == null) {
-      return const ApiException(
-        'No recibimos una respuesta del servidor. Revisá tu conexión e intentá nuevamente.',
-      );
+      return ApiException(_sinRespuesta(error.type));
     }
     final cuerpo = respuesta.data;
     if (cuerpo is! Map<String, dynamic>) {
@@ -51,6 +49,22 @@ class ApiException implements Exception {
     final texto = issue['message'] ?? issue['msg'] ?? '';
     return [campo, texto].where((t) => '$t'.isNotEmpty).join(': ');
   }
+
+  /// El servidor no contesto. Distinguir *por que* no contesto es lo unico
+  /// que despues permite diagnosticar: un tiempo agotado (backend dormido,
+  /// telefono en una red lenta) no se arregla igual que un certificado que el
+  /// telefono no valida (reloj desajustado) ni que un corte de red.
+  static String _sinRespuesta(DioExceptionType tipo) => switch (tipo) {
+        DioExceptionType.connectionTimeout ||
+        DioExceptionType.sendTimeout ||
+        DioExceptionType.receiveTimeout =>
+          'El servidor tardó demasiado en responder. Revisá tu conexión y volvé a intentar.',
+        DioExceptionType.badCertificate =>
+          'No pudimos validar el certificado del servidor. Revisá la fecha y hora del teléfono y tu conexión.',
+        DioExceptionType.cancel => 'La operación fue cancelada.',
+        _ =>
+          'No recibimos una respuesta del servidor. Revisá tu conexión e intentá nuevamente.',
+      };
 
   static String _porEstado(int? estado) => switch (estado) {
         401 => 'Tu sesión venció. Volvé a iniciar sesión.',

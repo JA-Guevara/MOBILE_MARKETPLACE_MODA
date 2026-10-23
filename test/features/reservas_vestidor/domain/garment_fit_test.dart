@@ -97,6 +97,23 @@ void main() {
       expect(ajuste.rotation.abs(), greaterThan(0.2));
     });
 
+    test('limita la escala máxima ante anclajes muy estrechos', () {
+      final anclajesEstrechos = <String, List<double>>{
+        'shoulder_left': [0.48, 0.12],
+        'shoulder_right': [0.52, 0.12],
+      };
+      final ajuste = calcularAjuste(
+        cuerpo(),
+        RegionCuerpo.superior,
+        anclajesEstrechos,
+        (ancho: 400, alto: 600),
+        box,
+      )!;
+      // Con span de 120 px y anchoMaximo = 120 * 2.4 = 288 px,
+      // la escala no debe superar 288 / 400 = 0.72
+      expect(ajuste.scale, lessThanOrEqualTo(0.72 + 1e-4));
+    });
+
     test('sin anclajes sigue ubicando la prenda, apenas menos precisa', () {
       final ajuste = calcularAjuste(
         cuerpo(),

@@ -235,7 +235,9 @@ AjustePrenda? calcularAjuste(
   if (izquierda.length < 2 || derecha.length < 2) return null;
 
   final anchoAnclaje = math.max(0.05, derecha[0] - izquierda[0]);
-  final anchoDeseado = (linea.spanPx * _reglas[region]!.holgura) / anchoAnclaje;
+  final anchoPorAnclaje = (linea.spanPx * _reglas[region]!.holgura) / anchoAnclaje;
+  final anchoMaximo = linea.spanPx * (region == RegionCuerpo.cuerpoEntero ? 2.6 : 2.4);
+  final anchoDeseado = math.min(anchoPorAnclaje, anchoMaximo);
   final scale = anchoDeseado / imagen.ancho;
 
   // Punto medio del anclaje, en píxeles de la imagen ya escalada, medido desde

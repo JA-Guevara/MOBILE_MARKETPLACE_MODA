@@ -36,15 +36,15 @@ reportes siguen siendo web: son tareas de escritorio, con tablas anchas y formul
 |---|---|---|
 | Auth | Iniciar sesión, registrarse, recuperar contraseña, verificar/reenviar correo, cambiar contraseña, Mi cuenta | **Implementado** |
 | Catálogo | Home, búsqueda (`search`), filtro por categoría/destacadas, scroll infinito (12 por página), tarjetas con imágenes y precios, recomendaciones sin sesión, pull-to-refresh | **Implementado** |
-| Prenda | `/prendas/:slug` — fotos, tallas, colores, disponibilidad por sucursal | Pendiente |
-| Probador virtual | `/prendas/:slug/vestidor` — cámara + pose (RF13) | Pendiente |
-| Carrito y pago | `/carrito` — reserva, checkout y pago Stripe (RF14, RF16) | Pendiente |
-| Reservas | `/reservar` y `/mi-cuenta/reservas` — agendar visita (RF09–RF12) | Pendiente |
-| Pedidos | `/mi-cuenta/pedidos` — seguimiento y devoluciones (CU19) | Pendiente |
-| Direcciones | `/mi-cuenta/direcciones` | Pendiente |
+| Prenda | `/prendas/:slug` — fotos, carrusel, tallas, colores, favorito, reserva, carrito y acceso al vestidor | **Implementado** |
+| Probador virtual | `/prendas/:slug/vestidor` — cámara, pose y recurso transparente por prenda/color (RF13) | **Implementado** |
+| Carrito y pago | `/carrito` — cantidades, cupón, dirección, pedido y checkout Stripe (RF14, RF16) | **Implementado** |
+| Reservas | `/reservar` y `/mi-cuenta/reservas` — agendar, cancelar y consultar visita (RF09–RF12) | **Implementado** |
+| Pedidos | `/mi-cuenta/pedidos` — seguimiento, reintento de pago y devoluciones (CU19) | **Implementado** |
+| Direcciones | `/mi-cuenta/direcciones` | **Implementado** |
 
-Los módulos pendientes muestran `PantallaPendiente` (una descripción de lo que harán y los
-endpoints que consumirán). Su plan y contrato están en `docs/PROJECT_GUIDE.md`.
+La app cliente cubre los flujos de compra y seguimiento. Las operaciones internas de administración
+se mantienen en la web, donde las tablas y controles de gestión son apropiados para escritorio.
 
 **Contrato verificado contra el backend real:** el catálogo usa `GET /catalog/products`
 paginado (`page`, `page_size`, `search`, `category_id`, `brand`, `featured`, `min_price`,
@@ -191,11 +191,12 @@ Rutas privadas (sin sesión redirigen a `/iniciar-sesion`):
 |---|---|
 | `/mi-cuenta` | Mi cuenta (perfil) — **implementada** |
 | `/mi-cuenta/seguridad` | Cambiar contraseña — **implementada** |
-| `/mi-cuenta/pedidos` | Mis pedidos (pendiente) |
-| `/mi-cuenta/reservas` | Mis reservas (pendiente) |
-| `/mi-cuenta/direcciones` | Mis direcciones (pendiente) |
+| `/mi-cuenta/pedidos` | Mis pedidos: estado, pago, seguimiento y devoluciones |
+| `/mi-cuenta/reservas` | Mis reservas: sucursal, prendas, horario, estado y cancelación |
+| `/mi-cuenta/favoritos` | Mis favoritos y preferencias de aviso de stock/precio |
+| `/mi-cuenta/direcciones` | Mis direcciones |
 | `/carrito` | Carrito (pendiente) |
-| `/reservar` | Agendar visita (pendiente) |
+| `/reservar` | Agendar visita con prendas, sucursal, fecha y disponibilidad |
 | `/prendas/:slug` | Detalle de prenda (pendiente) |
 | `/prendas/:slug/vestidor` | Probador virtual (pendiente) |
 

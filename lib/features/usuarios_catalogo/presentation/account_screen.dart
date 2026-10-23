@@ -185,20 +185,24 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                 ? usuario.telefono!
                 : 'Sin teléfono registrado'),
             const SizedBox(height: 16),
-            Row(
+            // `Wrap` y no `Row`: con el correo sin verificar son dos acciones
+            // con texto largo que en un telefono angosto no entran en una
+            // linea; asi bajan solas en vez de desbordar.
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 FilledButton.tonalIcon(
                   onPressed: _ocupado ? null : _alternarEdicion,
                   icon: Icon(_editando ? Icons.close : Icons.edit),
                   label: Text(_editando ? 'Cerrar edición' : 'Editar mis datos'),
                 ),
-                if (!usuario.verificado) ...[
-                  const SizedBox(width: 8),
+                if (!usuario.verificado)
                   TextButton(
                     onPressed: _ocupado ? null : _reenviarVerificacion,
                     child: const Text('Reenviar verificación'),
                   ),
-                ],
               ],
             ),
             if (_editando) ...[
@@ -252,6 +256,24 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
               titulo: 'Mis reservas',
               detalle: 'Prueba en sucursal',
               onTap: () => context.go('/mi-cuenta/reservas'),
+            ),
+            _Acceso(
+              icono: Icons.favorite_border,
+              titulo: 'Mis favoritos',
+              detalle: 'Avisos de stock y precio',
+              onTap: () => context.push('/mi-cuenta/favoritos'),
+            ),
+            _Acceso(
+              icono: Icons.location_on_outlined,
+              titulo: 'Mis direcciones',
+              detalle: 'Dónde recibís tus pedidos',
+              onTap: () => context.push('/mi-cuenta/direcciones'),
+            ),
+            _Acceso(
+              icono: Icons.storefront_outlined,
+              titulo: 'Sucursales',
+              detalle: 'Dónde retirar',
+              onTap: () => context.push('/sucursales'),
             ),
             _Acceso(
               icono: Icons.lock_outline,

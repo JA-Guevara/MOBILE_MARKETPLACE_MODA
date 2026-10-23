@@ -5,17 +5,22 @@ import 'package:intl/intl.dart';
 class Formato {
   const Formato._();
 
-  static final NumberFormat _moneda = NumberFormat.currency(
-    locale: 'es-BO',
-    symbol: 'Bs ',
-    decimalDigits: 2,
-  );
+  // `NumberFormat.currency(locale: 'es-BO')` pone el simbolo **detras**
+  // (`1.234,50 Bs`), que no es lo que muestra la web: el catalogo web escribe
+  // `Bs {{ precio | number:'1.2-2' }}`, o sea el simbolo delante. Se arma a
+  // mano para que los dos productos digan el precio igual.
+  static final NumberFormat _decimal = NumberFormat('#,##0.00', 'es_BO');
 
-  static final DateFormat _fechaHora = DateFormat("dd/MM/yyyy HH:mm", 'es');
-  static final DateFormat _fecha = DateFormat('dd/MM/yyyy', 'es');
+  // Sin locale a proposito. Estos patrones son solo numeros —no aparece ningun
+  // nombre de mes ni de dia—, asi que el idioma no cambia el resultado; pero
+  // pedir `'es'` obliga a llamar a `initializeDateFormatting('es')` al arrancar
+  // la app y, si alguien lo olvida, cada fecha lanza `LocaleDataException` en
+  // vez de mostrarse.
+  static final DateFormat _fechaHora = DateFormat('dd/MM/yyyy HH:mm');
+  static final DateFormat _fecha = DateFormat('dd/MM/yyyy');
 
   /// `1234.5` → `Bs 1.234,50`.
-  static String moneda(num valor) => _moneda.format(valor);
+  static String moneda(num valor) => 'Bs ${_decimal.format(valor)}';
 
   /// Numérico simple con dos decimales, sin símbolo.
   static String numero(double valor) => valor.toStringAsFixed(2);
