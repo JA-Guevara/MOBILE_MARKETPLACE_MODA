@@ -43,6 +43,8 @@ class Usuario {
 
   String get nombreCompleto => '$nombre $apellido'.trim();
 
+  bool get esCuentaPlataforma => empresa == null && permisos.contains('tenants.read');
+
   bool puede(String permiso) => permisos.contains(permiso);
 
   factory Usuario.desdeJson(Map<String, dynamic> json) {

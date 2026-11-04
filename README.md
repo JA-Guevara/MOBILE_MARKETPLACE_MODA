@@ -256,8 +256,9 @@ renovación/rotación de tokens en el `AuthInterceptor`.
   lado, pasá `--dart-define=...` o `--dart-define-from-file=.env`.
 - Verificá que teléfono y PC estén en la misma red y que el firewall deje pasar el puerto.
 
-## Documentación relacionada
+## Documentación relacionada (Centralizada en `docs/`)
 
-- `docs/PROJECT_GUIDE.md`: arquitectura, mapa de pantallas con sus endpoints y orden de trabajo.
-- `../backend_marketplace_moda/docs/API_CONTRACT.md`: contrato de los endpoints que consume la app.
-- `../backend_marketplace_moda/docs/TRAZABILIDAD_RF.md`: estado de cada RF en los tres proyectos.# MOBILE_MARKETPLACE_MODA
+- `../docs/movil/PROJECT_GUIDE.md`: arquitectura, mapa de pantallas con sus endpoints, cuenta de plataforma y orden de trabajo.
+- `../docs/backend/API_CONTRACT.md`: contrato de los endpoints que consume la app.
+- `../docs/backend/TRAZABILIDAD_RF.md`: estado de cada RF en los tres proyectos.
+- `../docs/movil/AUDITORIA_MIGRACION_MOVIL_2026-09-21.md`: auditoría de migración móvil.

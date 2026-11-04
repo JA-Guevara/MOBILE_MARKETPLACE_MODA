@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/usuarios_catalogo/application/session_controller.dart';
 import '../features/usuarios_catalogo/presentation/account_screen.dart';
 import '../features/usuarios_catalogo/presentation/cambiar_contrasena_screen.dart';
+import '../features/usuarios_catalogo/presentation/cuenta_plataforma_screen.dart';
 import '../features/usuarios_catalogo/presentation/login_screen.dart';
 import '../features/usuarios_catalogo/presentation/prenda_screen.dart';
 import '../features/ventas_pagos/presentation/carrito_screen.dart';
@@ -63,6 +64,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       // login en ese instante haría parpadear la pantalla en cada arranque.
       if (sesion.restaurando) return null;
       final destino = estado.matchedLocation;
+
+      final usuario = sesion.usuario;
+      if (usuario?.esCuentaPlataforma == true) {
+        if (destino != '/cuenta-plataforma') {
+          return '/cuenta-plataforma';
+        }
+        return null;
+      }
+      if (destino == '/cuenta-plataforma') {
+        return '/';
+      }
+
       // El espejo en vivo es público, igual que en la web; una cuenta se pide
       // recién para guardar una foto IA o consultar información personal.
       final exigeSesion = _rutasPrivadas.any(destino.startsWith);
@@ -72,6 +85,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/cuenta-plataforma',
+        parentNavigatorKey: _raiz,
+        builder: (context, estado) => const CuentaPlataformaScreen(),
+      ),
       GoRoute(
         path: '/sin-conexion',
         parentNavigatorKey: _raiz,
