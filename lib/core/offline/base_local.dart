@@ -23,7 +23,10 @@ class BaseLocal {
         ruta,
         options: OpenDatabaseOptions(
           version: EsquemaLocal.version,
+          onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
           onCreate: EsquemaLocal.crear,
+          onUpgrade: EsquemaLocal.migrar,
+          onOpen: EsquemaLocal.verificarV2,
         ),
       );
     } catch (_) {

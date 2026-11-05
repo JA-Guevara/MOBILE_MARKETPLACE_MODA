@@ -25,11 +25,49 @@ class ApiException implements Exception {
     }
     final cuerpo = respuesta.data;
     if (cuerpo is! Map<String, dynamic>) {
-      return ApiException(_porEstado(respuesta.statusCode), statusCode: respuesta.statusCode);
+      return ApiException(
+        _porEstado(respuesta.statusCode),
+        statusCode: respuesta.statusCode,
+      );
     }
     final envoltorio = cuerpo['error'];
-    final detalle = (envoltorio is Map<String, dynamic> ? envoltorio['details'] : null) ?? cuerpo['detail'];
-    final mensaje = (envoltorio is Map<String, dynamic> ? envoltorio['message'] as String? : null) ??
+    final detalle =
+        (envoltorio is Map<String, dynamic> ? envoltorio['details'] : null) ??
+        cuerpo['detail'];
+    final codigo = envoltorio is Map ? envoltorio['code'] : null;
+    if (codigo == 'module_not_enabled' || codigo == 'feature_not_in_plan') {
+      final datos = detalle is Map ? detalle : const {};
+      final modulo =
+          datos['module_name'] ??
+          datos['feature_name'] ??
+          datos['module_code'] ??
+          datos['module'] ??
+          datos['feature'];
+      if (modulo is String && modulo.isNotEmpty) {
+        final nombre =
+            const {
+              'products': 'Catálogo',
+              'sales': 'Ventas',
+              'reservations': 'Reservas',
+              'offline': 'Operación sin conexión',
+              'conventional_reports': 'Reportes convencionales',
+              'ai_reports': 'Reportes con IA',
+              'ml_analytics': 'Analítica ML',
+              'exchanges': 'Cambios de prenda',
+              'promotions': 'Ofertas y promociones',
+              'devices_audit': 'Dispositivos y auditoría',
+            }[modulo] ??
+            modulo;
+        return ApiException(
+          'El módulo «$nombre» no está habilitado para tu empresa. Consultá con tu administrador.',
+          statusCode: respuesta.statusCode,
+        );
+      }
+    }
+    final mensaje =
+        (envoltorio is Map<String, dynamic>
+            ? envoltorio['message'] as String?
+            : null) ??
         (detalle is String ? detalle : null) ??
         _porEstado(respuesta.statusCode);
     final campos = detalle is List
@@ -45,7 +83,9 @@ class ApiException implements Exception {
   static String _campo(dynamic issue) {
     if (issue is! Map) return '';
     final ubicacion = issue['field'] ?? issue['loc'];
-    final campo = ubicacion is List ? ubicacion.join('.') : '${ubicacion ?? ''}';
+    final campo = ubicacion is List
+        ? ubicacion.join('.')
+        : '${ubicacion ?? ''}';
     final texto = issue['message'] ?? issue['msg'] ?? '';
     return [campo, texto].where((t) => '$t'.isNotEmpty).join(': ');
   }
@@ -55,22 +95,21 @@ class ApiException implements Exception {
   /// telefono en una red lenta) no se arregla igual que un certificado que el
   /// telefono no valida (reloj desajustado) ni que un corte de red.
   static String _sinRespuesta(DioExceptionType tipo) => switch (tipo) {
-        DioExceptionType.connectionTimeout ||
-        DioExceptionType.sendTimeout ||
-        DioExceptionType.receiveTimeout =>
-          'El servidor tardó demasiado en responder. Revisá tu conexión y volvé a intentar.',
-        DioExceptionType.badCertificate =>
-          'No pudimos validar el certificado del servidor. Revisá la fecha y hora del teléfono y tu conexión.',
-        DioExceptionType.cancel => 'La operación fue cancelada.',
-        _ =>
-          'No recibimos una respuesta del servidor. Revisá tu conexión e intentá nuevamente.',
-      };
+    DioExceptionType.connectionTimeout ||
+    DioExceptionType.sendTimeout ||
+    DioExceptionType.receiveTimeout =>
+      'El servidor tardó demasiado en responder. Revisá tu conexión y volvé a intentar.',
+    DioExceptionType.badCertificate =>
+      'No pudimos validar el certificado del servidor. Revisá la fecha y hora del teléfono y tu conexión.',
+    DioExceptionType.cancel => 'La operación fue cancelada.',
+    _ =>
+      'No recibimos una respuesta del servidor. Revisá tu conexión e intentá nuevamente.',
+  };
 
   static String _porEstado(int? estado) => switch (estado) {
-        401 => 'Tu sesión venció. Volvé a iniciar sesión.',
-        403 => 'No tenés permiso para esta operación.',
-        404 => 'No encontramos lo que buscabas.',
-        _ => 'No se pudo completar la operación.',
-      };
+    401 => 'Tu sesión venció. Volvé a iniciar sesión.',
+    403 => 'No tenés permiso para esta operación.',
+    404 => 'No encontramos lo que buscabas.',
+    _ => 'No se pudo completar la operación.',
+  };
 }
-

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/network/api_exception.dart';
 import '../application/account_controller.dart';
@@ -70,7 +71,9 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       _mensaje = null;
     });
     try {
-      await ref.read(accountControllerProvider.notifier).guardarPerfil(
+      await ref
+          .read(accountControllerProvider.notifier)
+          .guardarPerfil(
             nombre: _nombre.text.trim(),
             apellido: _apellido.text.trim(),
             telefono: _telefono.text.trim(),
@@ -96,7 +99,9 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       _mensaje = null;
     });
     try {
-      final mensaje = await ref.read(sessionProvider.notifier).reenviarVerificacion();
+      final mensaje = await ref
+          .read(sessionProvider.notifier)
+          .reenviarVerificacion();
       if (mounted) setState(() => _mensaje = mensaje);
     } on ApiException catch (error) {
       setState(() => _error = error.message);
@@ -113,9 +118,14 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       _mensaje = null;
     });
     try {
-      await ref.read(accountControllerProvider.notifier).marcarPredeterminada(direccion);
+      await ref
+          .read(accountControllerProvider.notifier)
+          .marcarPredeterminada(direccion);
       if (mounted) {
-        setState(() => _mensaje = '«${direccion.label}» quedó como dirección predeterminada.');
+        setState(
+          () => _mensaje =
+              '«${direccion.label}» quedó como dirección predeterminada.',
+        );
       }
     } on ApiException catch (error) {
       setState(() => _error = error.message);
@@ -166,7 +176,10 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(usuario.nombreCompleto, style: tema.textTheme.titleMedium),
+                      Text(
+                        usuario.nombreCompleto,
+                        style: tema.textTheme.titleMedium,
+                      ),
                       Text(usuario.email, style: tema.textTheme.bodySmall),
                       const SizedBox(height: 4),
                       Text(
@@ -181,10 +194,39 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            Text(usuario.telefono?.isNotEmpty == true
-                ? usuario.telefono!
-                : 'Sin teléfono registrado'),
+            Text(
+              usuario.telefono?.isNotEmpty == true
+                  ? usuario.telefono!
+                  : 'Sin teléfono registrado',
+            ),
             const SizedBox(height: 16),
+            if (usuario.suscripcion != null) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Mi plan', style: tema.textTheme.titleMedium),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${usuario.suscripcion!.nombrePlan} · ${usuario.suscripcion!.estado}',
+                      ),
+                      for (final modulo in usuario.modulos.where(
+                        (m) => m.enPrueba,
+                      ))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            '${modulo.nombre} · En prueba${modulo.expira == null ? '' : ' hasta el ${DateFormat('dd/MM/yyyy').format(modulo.expira!.toLocal())}'}',
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             // `Wrap` y no `Row`: con el correo sin verificar son dos acciones
             // con texto largo que en un telefono angosto no entran en una
             // linea; asi bajan solas en vez de desbordar.
@@ -196,7 +238,9 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                 FilledButton.tonalIcon(
                   onPressed: _ocupado ? null : _alternarEdicion,
                   icon: Icon(_editando ? Icons.close : Icons.edit),
-                  label: Text(_editando ? 'Cerrar edición' : 'Editar mis datos'),
+                  label: Text(
+                    _editando ? 'Cerrar edición' : 'Editar mis datos',
+                  ),
                 ),
                 if (!usuario.verificado)
                   TextButton(
@@ -238,7 +282,10 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             ],
             if (_mensaje != null) ...[
               const SizedBox(height: 12),
-              Text(_mensaje!, style: TextStyle(color: tema.colorScheme.primary)),
+              Text(
+                _mensaje!,
+                style: TextStyle(color: tema.colorScheme.primary),
+              ),
             ],
             if (_error != null) ...[
               const SizedBox(height: 12),
@@ -383,10 +430,16 @@ class _TarjetaDireccion extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(direccion.label, style: tema.textTheme.titleSmall),
+                  child: Text(
+                    direccion.label,
+                    style: tema.textTheme.titleSmall,
+                  ),
                 ),
                 if (direccion.isDefault)
-                  Chip(label: const Text('Predeterminada'), visualDensity: VisualDensity.compact),
+                  Chip(
+                    label: const Text('Predeterminada'),
+                    visualDensity: VisualDensity.compact,
+                  ),
               ],
             ),
             const SizedBox(height: 4),

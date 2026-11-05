@@ -14,6 +14,11 @@ class CatalogoLocalDao {
     if (!i.sucursales.any((s) => s.id == sucursalId)) {
       throw StateError('La sucursal no pertenece a la instantánea.');
     }
+    if (i.cajas.any((c) => !i.sucursales.any((s) => s.id == c.sucursalId))) {
+      throw StateError(
+        'Una caja no pertenece a las sucursales de la instantánea.',
+      );
+    }
     final db = await base.abrir();
     await db.transaction((txn) async {
       final filas = await txn.query(
@@ -39,6 +44,11 @@ class CatalogoLocalDao {
         );
       }
       if (i.completa) {
+        // Las ventas son historia local: sus cajas se conservan inactivas.
+        await txn.update('cajas', {'activa': 0});
+        await txn.rawDelete(
+          'DELETE FROM cajas WHERE id NOT IN (SELECT caja_id FROM ventas_locales)',
+        );
         for (final tabla in [
           'existencias',
           'variantes',
@@ -48,6 +58,17 @@ class CatalogoLocalDao {
         ]) {
           await txn.delete(tabla);
         }
+      }
+      for (final caja in i.cajas) {
+        // REPLACE borra primero la fila y rompe las FK de ventas existentes.
+        // UPDATE conserva la identidad referenciada por documentos históricos.
+        final actualizadas = await txn.update(
+          'cajas',
+          caja.aFila(),
+          where: 'id = ?',
+          whereArgs: [caja.id],
+        );
+        if (actualizadas == 0) await txn.insert('cajas', caja.aFila());
       }
       final batch = txn.batch();
       for (final p in i.productos) {
@@ -115,8 +136,19 @@ class CatalogoLocalDao {
         'descargado_en': DateTime.now().toIso8601String(),
         'sucursal_id': sucursalId,
         'tenant_id': i.empresa.id,
+        if (i.precioVigenteHasta != null)
+          'precio_vigente_hasta': i.precioVigenteHasta!
+              .toUtc()
+              .toIso8601String(),
         if (usuarioId != null) 'catalogo_usuario_id': usuarioId,
       };
+      if (i.precioVigenteHasta == null) {
+        await txn.delete(
+          'meta',
+          where: 'clave = ?',
+          whereArgs: ['precio_vigente_hasta'],
+        );
+      }
       for (final e in meta.entries) {
         await txn.insert('meta', {
           'clave': e.key,
@@ -125,6 +157,14 @@ class CatalogoLocalDao {
       }
     });
   }
+
+  Future<List<CajaLocal>> cajas(String sucursalId) async =>
+      (await (await base.abrir()).query(
+        'cajas',
+        where: 'sucursal_id = ? AND activa = 1',
+        whereArgs: [sucursalId],
+        orderBy: 'codigo',
+      )).map(CajaLocal.desdeFila).toList();
 
   Future<DatosLocales> leer(String sucursalId) async {
     final db = await base.abrir();
@@ -162,6 +202,7 @@ class CatalogoLocalDao {
       sucursalId: m['sucursal_id'],
       tenantId: m['tenant_id'],
       usuarioId: m['catalogo_usuario_id'],
+      precioVigenteHasta: DateTime.tryParse(m['precio_vigente_hasta'] ?? ''),
     );
   }
 

@@ -1,0 +1,113 @@
+name: APK Android de defensa (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: 'API del entorno de prueba, incluyendo /api/v1'
+        required: true
+        type: string
+      tenant_slug:
+        description: 'Empresa de demostración'
+        required: true
+        default: 'urbano'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      API_URL: ${{ inputs.api_url }}
+      TENANT_SLUG: ${{ inputs.tenant_slug }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.5'
+          cache: true
+      - name: Comprobar parámetros y preparar firma opcional
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import base64, os
+          from pathlib import Path
+          from urllib.parse import urlparse
+          url = urlparse(os.environ['API_URL'])
+          if url.scheme not in ('http', 'https') or not url.netloc or not url.path.rstrip('/').endswith('/api/v1'):
+              raise SystemExit('API_URL debe incluir el origen y /api/v1 del entorno de prueba.')
+          names = ['ANDROID_KEYSTORE_BASE64', 'ANDROID_STORE_PASSWORD', 'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD']
+          present = [bool(os.environ.get(name)) for name in names]
+          if any(present) and not all(present):
+              raise SystemExit('La firma personalizada necesita los cuatro secretos completos.')
+          mode = 'depuración para demostración (configuración existente)'
+          if all(present):
+              target = Path(os.environ['RUNNER_TEMP']) / 'defensa-keystore.jks'
+              target.write_bytes(base64.b64decode(os.environ['ANDROID_KEYSTORE_BASE64'], validate=True))
+              target.chmod(0o600)
+              gradle = Path('android/app/build.gradle.kts')
+              source = gradle.read_text()
+              marker = '    buildTypes {'
+              old = 'signingConfig = signingConfigs.getByName("debug")'
+              if source.count(marker) != 1 or source.count(old) != 1:
+                  raise SystemExit('Cambió build.gradle.kts: revisar la integración de firma antes de continuar.')
+              config = '''    signingConfigs {
+                  create("defensa") {
+                      storeFile = file(System.getenv("DEFENSA_KEYSTORE"))
+                      storePassword = System.getenv("ANDROID_STORE_PASSWORD")
+                      keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                      keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                  }
+              }
+          '''
+              gradle.write_text(source.replace(marker, config + marker).replace(old, 'signingConfig = signingConfigs.getByName("defensa")'))
+              with open(os.environ['GITHUB_ENV'], 'a') as env:
+                  env.write(f'DEFENSA_KEYSTORE={target}\n')
+              mode = 'keystore configurado por secretos del repositorio'
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write(f'Firma del APK: {mode}.\n')
+          PY
+      - name: Dependencias
+        run: flutter pub get
+      - name: Análisis y pruebas
+        run: |
+          flutter analyze
+          flutter test
+      - name: Construir APK release
+        env:
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: >-
+          flutter build apk --release
+          --dart-define="API_URL=$API_URL"
+          --dart-define="TENANT_SLUG=$TENANT_SLUG"
+      - name: Registrar versión y huella
+        run: |
+          flutter --version > build/app/outputs/flutter-apk/entorno.txt
+          git rev-parse HEAD >> build/app/outputs/flutter-apk/entorno.txt
+          sha256sum build/app/outputs/flutter-apk/app-release.apk > build/app/outputs/flutter-apk/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fashionstore-apk-defensa-${{ github.run_number }}
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/entorno.txt
+            build/app/outputs/flutter-apk/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
+      - name: Retirar keystore temporal
+        if: always()
+        run: rm -f "$RUNNER_TEMP/defensa-keystore.jks"

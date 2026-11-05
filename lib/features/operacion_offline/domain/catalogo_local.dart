@@ -22,6 +22,7 @@ class ProductoLocal {
   final String? imagenUrl, actualizadoEn;
   final bool destacado;
   double get precio => precioOferta ?? precioBase;
+  bool get tieneOferta => precioOferta != null && precioOferta! < precioBase;
   factory ProductoLocal.desdeJson(Map<String, dynamic> j) => ProductoLocal(
     id: '${j['id']}',
     nombre: j['name'] as String,
@@ -71,12 +72,15 @@ class VarianteLocal {
     required this.color,
     this.colorHex,
     this.precio,
+    this.precioOferta,
     this.activa = true,
   });
   final String id, productoId, sku, talla, color;
   final String? colorHex;
   final double? precio;
+  final double? precioOferta;
   final bool activa;
+  double get precioFinal => precioOferta ?? precio ?? 0.0;
   factory VarianteLocal.desdeJson(Map<String, dynamic> j) => VarianteLocal(
     id: '${j['id']}',
     productoId: '${j['product_id']}',
@@ -85,6 +89,7 @@ class VarianteLocal {
     color: '${j['color']}',
     colorHex: j['color_hex'] as String?,
     precio: j['price'] == null ? null : numero(j['price']),
+    precioOferta: j['offer_price'] == null ? null : numero(j['offer_price']),
     activa: bandera(j['is_active']),
   );
   factory VarianteLocal.desdeFila(Map<String, Object?> f) => VarianteLocal(
@@ -163,6 +168,39 @@ class SucursalLocal {
   };
 }
 
+class CajaLocal {
+  const CajaLocal({
+    required this.id,
+    required this.sucursalId,
+    required this.codigo,
+    required this.nombre,
+    this.activa = true,
+  });
+  final String id, sucursalId, codigo, nombre;
+  final bool activa;
+  factory CajaLocal.desdeJson(Map<String, dynamic> j) => CajaLocal(
+    id: '${j['id']}',
+    sucursalId: '${j['branch_id']}',
+    codigo: j['code'] as String,
+    nombre: j['name'] as String,
+    activa: j['is_active'] == null || bandera(j['is_active']),
+  );
+  factory CajaLocal.desdeFila(Map<String, Object?> f) => CajaLocal(
+    id: f['id'] as String,
+    sucursalId: f['sucursal_id'] as String,
+    codigo: f['codigo'] as String,
+    nombre: f['nombre'] as String,
+    activa: bandera(f['activa']),
+  );
+  Map<String, Object?> aFila() => {
+    'id': id,
+    'sucursal_id': sucursalId,
+    'codigo': codigo,
+    'nombre': nombre,
+    'activa': activa ? 1 : 0,
+  };
+}
+
 class ClienteLocal {
   const ClienteLocal({
     required this.id,
@@ -203,6 +241,8 @@ class InstantaneaCatalogo {
     this.existencias = const [],
     this.sucursales = const [],
     this.clientes = const [],
+    this.cajas = const [],
+    this.precioVigenteHasta,
     this.productosEliminados = const [],
     this.variantesEliminadas = const [],
   });
@@ -215,6 +255,9 @@ class InstantaneaCatalogo {
   final List<ExistenciaLocal> existencias;
   final List<SucursalLocal> sucursales;
   final List<ClienteLocal> clientes;
+  final List<CajaLocal> cajas;
+  // Ausente en instantáneas v1: no se inventa una nueva vigencia local.
+  final DateTime? precioVigenteHasta;
   final List<String> productosEliminados, variantesEliminadas;
   factory InstantaneaCatalogo.desdeJson(Map<String, dynamic> j) {
     List<T> lista<T>(String k, T Function(Map<String, dynamic>) parse) =>
@@ -232,6 +275,10 @@ class InstantaneaCatalogo {
       existencias: lista('stock', ExistenciaLocal.desdeJson),
       sucursales: lista('branches', SucursalLocal.desdeJson),
       clientes: lista('customers', ClienteLocal.desdeJson),
+      cajas: lista('cash_points', CajaLocal.desdeJson),
+      precioVigenteHasta: j['price_valid_until'] == null
+          ? null
+          : DateTime.parse(j['price_valid_until'] as String),
       productosEliminados: (removed['products'] as List<dynamic>? ?? [])
           .map((e) => '$e')
           .toList(),
@@ -249,9 +296,11 @@ class MetaOffline {
     this.sucursalId,
     this.tenantId,
     this.usuarioId,
+    this.precioVigenteHasta,
   });
   final String? version, sucursalId, tenantId, usuarioId;
   final DateTime? descargadoEn;
+  final DateTime? precioVigenteHasta;
   bool get disponible => version != null;
 }
 

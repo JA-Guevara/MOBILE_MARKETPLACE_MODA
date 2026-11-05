@@ -13,6 +13,7 @@ class Variante {
     this.hexColor,
     this.sku = '',
     this.precio,
+    this.precioOferta,
     this.activa = true,
   });
 
@@ -31,10 +32,11 @@ class Variante {
 
   /// `price_override` de la variante. `null` significa «vale el precio base».
   final num? precio;
+  final num? precioOferta;
   final bool activa;
 
-  /// Lo que se le cobra a la persona por esta variante.
-  num precioFinal(num precioBase) => precio ?? precioBase;
+  /// Lo que se le cobra a la persona por esta variante (considerando oferta vigente).
+  num precioFinal(num precioBase) => precioOferta ?? precio ?? precioBase;
 
   String get etiqueta => [codigoTalla.isEmpty ? talla : codigoTalla, color]
       .where((t) => t.isNotEmpty)
@@ -53,6 +55,7 @@ class Variante {
       sku: json['sku'] as String? ?? '',
       // `price_override` llega como texto (`"123.00"`) o como null.
       precio: num.tryParse('${json['price_override']}'),
+      precioOferta: json['offer_price'] == null ? null : num.tryParse('${json['offer_price']}'),
       activa: json['is_active'] as bool? ?? true,
     );
   }
@@ -79,6 +82,9 @@ class Producto {
     this.genero = '',
     this.temporada = '',
     this.coleccion = '',
+    this.precioOferta,
+    this.nombreOferta,
+    this.finOferta,
     this.imagenes = const <String>[],
     this.variantes = const <Variante>[],
   });
@@ -87,6 +93,12 @@ class Producto {
   final String nombre;
   final String slug;
   final num precioBase;
+  final num? precioOferta;
+  final String? nombreOferta;
+  final DateTime? finOferta;
+
+  num get precioEfectivo => precioOferta ?? precioBase;
+  bool get tieneOferta => precioOferta != null && precioOferta! < precioBase;
   final String categoria;
   final String marca;
   final bool destacado;
@@ -142,6 +154,9 @@ class Producto {
       precioBase: num.tryParse('${json['base_price']}') ?? 0,
       categoria: categoria is Map ? '${categoria['name'] ?? ''}' : '',
       marca: json['brand'] as String? ?? '',
+      precioOferta: json['offer_price'] == null ? null : num.tryParse('${json['offer_price']}'),
+      nombreOferta: json['offer_name'] as String?,
+      finOferta: json['offer_ends_at'] == null ? null : DateTime.tryParse('${json['offer_ends_at']}'),
       destacado: json['is_featured'] as bool? ?? false,
       imagenUrl: ordenadas.isEmpty ? null : ordenadas.first,
       // Criterio único del probador: toda prenda con variantes activas se

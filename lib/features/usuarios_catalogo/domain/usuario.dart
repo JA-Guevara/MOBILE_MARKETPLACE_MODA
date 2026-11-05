@@ -10,6 +10,7 @@ class Usuario {
     this.permisos = const <String>{},
     this.empresa,
     this.suscripcion,
+    this.sucursalesAutorizadas = const [],
   });
 
   final String id;
@@ -25,6 +26,8 @@ class Usuario {
   final Set<String> permisos;
   final EmpresaResumen? empresa;
   final SuscripcionResumen? suscripcion;
+  final List<SucursalAutorizada> sucursalesAutorizadas;
+  List<ModuloEfectivo> get modulos => suscripcion?.modulos ?? const [];
 
   /// Lista explícita de campos del perfil: no incluye credenciales.
   Map<String, dynamic> aJson() => {
@@ -39,11 +42,13 @@ class Usuario {
     ],
     'tenant': empresa?.aJson(),
     'subscription': suscripcion?.aJson(),
+    'authorized_branches': sucursalesAutorizadas.map((s) => s.aJson()).toList(),
   };
 
   String get nombreCompleto => '$nombre $apellido'.trim();
 
-  bool get esCuentaPlataforma => empresa == null && permisos.contains('tenants.read');
+  bool get esCuentaPlataforma =>
+      empresa == null && permisos.contains('tenants.read');
 
   bool puede(String permiso) => permisos.contains(permiso);
 
@@ -64,6 +69,12 @@ class Usuario {
               json['subscription'] as Map<String, dynamic>,
             )
           : null,
+      sucursalesAutorizadas:
+          (json['authorized_branches'] as List<dynamic>? ?? const [])
+              .map(
+                (s) => SucursalAutorizada.desdeJson(s as Map<String, dynamic>),
+              )
+              .toList(),
       permisos: roles
           .expand(
             (rol) =>
@@ -75,6 +86,30 @@ class Usuario {
           .toSet(),
     );
   }
+}
+
+class SucursalAutorizada {
+  const SucursalAutorizada({
+    required this.id,
+    required this.codigo,
+    required this.nombre,
+    this.predeterminada = false,
+  });
+  final String id, codigo, nombre;
+  final bool predeterminada;
+  factory SucursalAutorizada.desdeJson(Map<String, dynamic> j) =>
+      SucursalAutorizada(
+        id: '${j['id']}',
+        codigo: j['code'] as String,
+        nombre: j['name'] as String,
+        predeterminada: j['is_default'] == true,
+      );
+  Map<String, dynamic> aJson() => {
+    'id': id,
+    'code': codigo,
+    'name': nombre,
+    'is_default': predeterminada,
+  };
 }
 
 class EmpresaResumen {
@@ -109,12 +144,14 @@ class SuscripcionResumen {
     this.diasRestantes = 0,
     this.funciones = const {},
     this.limites = const {},
+    this.modulos = const [],
   });
   final String codigoPlan, nombrePlan, estado;
   final String? inicio, fin;
   final int diasRestantes;
   final Map<String, bool> funciones;
   final Map<String, int> limites;
+  final List<ModuloEfectivo> modulos;
   bool get soloLectura => estado != 'ACTIVA';
   bool permite(String codigo) => funciones[codigo] == true;
   factory SuscripcionResumen.desdeJson(Map<String, dynamic> j) =>
@@ -131,6 +168,9 @@ class SuscripcionResumen {
         limites: (j['limits'] as Map<String, dynamic>? ?? {}).map(
           (k, v) => MapEntry(k, (v as num).toInt()),
         ),
+        modulos: (j['modules'] as List<dynamic>? ?? const [])
+            .map((m) => ModuloEfectivo.desdeJson(m as Map<String, dynamic>))
+            .toList(),
       );
   Map<String, dynamic> aJson() => {
     'plan_code': codigoPlan,
@@ -141,6 +181,35 @@ class SuscripcionResumen {
     'days_left': diasRestantes,
     'features': funciones,
     'limits': limites,
+    'modules': modulos.map((m) => m.aJson()).toList(),
+  };
+}
+
+/// La lista del servidor contiene solo módulos efectivos. `features` sigue
+/// siendo la fuente de habilitación; el origen explica plan, extra o prueba.
+class ModuloEfectivo {
+  const ModuloEfectivo({
+    required this.codigo,
+    required this.nombre,
+    required this.origen,
+    this.expira,
+  });
+  final String codigo, nombre, origen;
+  final DateTime? expira;
+  bool get enPrueba => origen == 'TRIAL';
+  factory ModuloEfectivo.desdeJson(Map<String, dynamic> j) => ModuloEfectivo(
+    codigo: j['code'] as String,
+    nombre: j['name'] as String? ?? j['code'] as String,
+    origen: j['origin'] as String,
+    expira: j['expires_at'] == null
+        ? null
+        : DateTime.parse(j['expires_at'] as String),
+  );
+  Map<String, dynamic> aJson() => {
+    'code': codigo,
+    'name': nombre,
+    'origin': origen,
+    'expires_at': expira?.toUtc().toIso8601String(),
   };
 }
 

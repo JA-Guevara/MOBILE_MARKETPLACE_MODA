@@ -28,6 +28,7 @@ import '../features/operacion_offline/presentation/catalogo_offline_screen.dart'
 import '../features/operacion_offline/presentation/reserva_offline_screen.dart';
 import '../features/operacion_offline/presentation/reservas_locales_screen.dart';
 import '../features/operacion_offline/presentation/comprobante_reserva_screen.dart';
+import '../features/ia_reportes/presentation/reportes_ia_screen.dart';
 
 /// Rutas de la aplicación, con los mismos nombres que la web.
 ///
@@ -162,6 +163,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/sucursales',
         parentNavigatorKey: _raiz,
         builder: (context, estado) => const SucursalesScreen(),
+      ),
+      GoRoute(
+        path: '/reportes-ia',
+        parentNavigatorKey: _raiz,
+        builder: (context, estado) => const ReportesIaScreen(),
       ),
       GoRoute(
         path: '/prendas/:slug/vestidor',
