@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +18,11 @@ class EstadoSesion {
     this.usuario,
     this.restaurando = true,
     this.sinConexion = false,
+    this.lifecycleState = 'active',
+    this.graceUntil,
+    this.readOnlySince,
+    this.soloLecturaPorSuscripcion = false,
+    this.mensajeSoloLectura,
   });
   final bool sinConexion;
 
@@ -27,7 +33,53 @@ class EstadoSesion {
   /// la app no debe mandar a iniciar sesión: sería un parpadeo en cada arranque.
   final bool restaurando;
 
+  final String lifecycleState;
+  final String? graceUntil;
+  final String? readOnlySince;
+  final bool soloLecturaPorSuscripcion;
+  final String? mensajeSoloLectura;
+
   bool get autenticado => usuario != null && !sinConexion;
+
+  bool get soloLectura =>
+      soloLecturaPorSuscripcion ||
+      lifecycleState == 'read_only' ||
+      lifecycleState == 'canceled' ||
+      (usuario?.suscripcion != null &&
+          usuario!.suscripcion!.soloLectura &&
+          lifecycleState != 'grace');
+
+  bool get enGracia => lifecycleState == 'grace';
+
+  bool get porVencer =>
+      lifecycleState == 'expiring' ||
+      (usuario?.suscripcion != null &&
+          usuario!.suscripcion!.diasRestantes <= 3 &&
+          usuario!.suscripcion!.diasRestantes >= 0 &&
+          lifecycleState != 'grace' &&
+          !soloLectura);
+
+  EstadoSesion copyWith({
+    Usuario? usuario,
+    bool? restaurando,
+    bool? sinConexion,
+    String? lifecycleState,
+    String? graceUntil,
+    String? readOnlySince,
+    bool? soloLecturaPorSuscripcion,
+    String? mensajeSoloLectura,
+  }) =>
+      EstadoSesion(
+        usuario: usuario ?? this.usuario,
+        restaurando: restaurando ?? this.restaurando,
+        sinConexion: sinConexion ?? this.sinConexion,
+        lifecycleState: lifecycleState ?? this.lifecycleState,
+        graceUntil: graceUntil ?? this.graceUntil,
+        readOnlySince: readOnlySince ?? this.readOnlySince,
+        soloLecturaPorSuscripcion:
+            soloLecturaPorSuscripcion ?? this.soloLecturaPorSuscripcion,
+        mensajeSoloLectura: mensajeSoloLectura ?? this.mensajeSoloLectura,
+      );
 }
 
 /// Dueño de la sesión: tokens, usuario y renovación.
@@ -35,18 +87,107 @@ class EstadoSesion {
 /// El access token vive solo acá, en memoria. El refresh se persiste cifrado
 /// para poder reabrir la app sin volver a escribir la contraseña.
 class SessionController extends StateNotifier<EstadoSesion> {
-  SessionController(this._api, this._store, {BaseLocal? baseLocal})
-    : _base = baseLocal,
-      super(const EstadoSesion());
+  SessionController(
+    this._api,
+    this._store, {
+    BaseLocal? baseLocal,
+    ApiClient? apiClient,
+  })  : _base = baseLocal,
+        _client = apiClient,
+        super(const EstadoSesion());
   final BaseLocal? _base;
+  final ApiClient? _client;
 
   final AuthApi _api;
   final TokenStore _store;
 
   String? _accessToken;
   String? _refreshToken;
+  Timer? _subscriptionTimer;
 
   String? get accessToken => _accessToken;
+
+  @override
+  void dispose() {
+    _detenerTemporizadorSuscripcion();
+    super.dispose();
+  }
+
+  void _iniciarTemporizadorSuscripcion() {
+    _subscriptionTimer?.cancel();
+    _subscriptionTimer = Timer.periodic(const Duration(minutes: 30), (_) {
+      refrescarSuscripcion();
+    });
+  }
+
+  void _detenerTemporizadorSuscripcion() {
+    _subscriptionTimer?.cancel();
+    _subscriptionTimer = null;
+  }
+
+  void marcarSoloLectura([String? mensaje]) {
+    state = state.copyWith(
+      lifecycleState: 'read_only',
+      soloLecturaPorSuscripcion: true,
+      mensajeSoloLectura: mensaje ??
+          'Modo solo lectura activado. Las ventas y reservas están bloqueadas.',
+    );
+  }
+
+  void manejarError403(dynamic error) {
+    if (error is ApiException && error.statusCode == 403) {
+      if (error.message.contains('subscription_read_only') ||
+          error.message.contains('solo lectura') ||
+          error.message.contains('solo_lectura')) {
+        marcarSoloLectura(error.message);
+      }
+    } else if (error is DioException && error.response?.statusCode == 403) {
+      final msg = error.response?.data?.toString() ?? '';
+      if (msg.contains('subscription_read_only') ||
+          msg.contains('solo lectura') ||
+          msg.contains('solo_lectura')) {
+        marcarSoloLectura('Modo solo lectura: $msg');
+      }
+    }
+  }
+
+  Future<void> refrescarSuscripcion() async {
+    if (state.usuario == null ||
+        state.usuario?.empresa == null ||
+        state.sinConexion) {
+      return;
+    }
+    final client = _client;
+    if (client == null) return;
+    try {
+      final res = await client.get<Map<String, dynamic>>('/tenant/subscription');
+      final current = res['current'] is Map<String, dynamic>
+          ? res['current'] as Map<String, dynamic>
+          : res;
+      final lState = current['lifecycle_state'] as String? ?? 'active';
+      final grace = current['grace_until'] as String?;
+      final roSince = current['read_only_since'] as String?;
+      final isReadOnly = lState == 'read_only' || lState == 'canceled';
+
+      state = state.copyWith(
+        lifecycleState: lState,
+        graceUntil: grace,
+        readOnlySince: roSince,
+        soloLecturaPorSuscripcion: isReadOnly,
+        mensajeSoloLectura: isReadOnly
+            ? 'Tu suscripción está vencida y en modo solo lectura.'
+            : null,
+      );
+    } on ApiException catch (e) {
+      if (e.statusCode == 403 &&
+          (e.message.contains('subscription_read_only') ||
+              e.message.contains('solo lectura'))) {
+        marcarSoloLectura('Tu suscripción está vencida y en modo solo lectura.');
+      }
+    } catch (_) {
+      // Sin conexión o fallo temporal: se conserva el estado actual
+    }
+  }
 
   /// Reabre la sesión guardada al arrancar la app.
   Future<void> restaurar() async {
@@ -65,11 +206,11 @@ class SessionController extends StateNotifier<EstadoSesion> {
       // no hay sesión y la app arranca como visitante.
       await limpiar();
     } finally {
-      state = EstadoSesion(
-        usuario: state.usuario,
-        restaurando: false,
-        sinConexion: state.sinConexion,
-      );
+      state = state.copyWith(restaurando: false);
+      if (state.usuario != null && !state.sinConexion) {
+        _iniciarTemporizadorSuscripcion();
+        unawaited(refrescarSuscripcion());
+      }
     }
   }
 
@@ -143,8 +284,14 @@ class SessionController extends StateNotifier<EstadoSesion> {
   Future<void> recargarUsuario() async {
     try {
       final usuario = await _api.yo();
-      state = EstadoSesion(usuario: usuario, restaurando: false);
+      final isRo = usuario.suscripcion?.soloLectura == true;
+      state = state.copyWith(
+        usuario: usuario,
+        restaurando: false,
+        soloLecturaPorSuscripcion: isRo || state.soloLecturaPorSuscripcion,
+      );
       await _guardarPerfil(usuario);
+      unawaited(refrescarSuscripcion());
     } catch (_) {
       // Sin conexión se queda el caché de la memoria; no hay nada que avisar.
     }
@@ -175,6 +322,7 @@ class SessionController extends StateNotifier<EstadoSesion> {
   }
 
   Future<void> limpiar() async {
+    _detenerTemporizadorSuscripcion();
     _accessToken = null;
     _refreshToken = null;
     await _store.limpiar();
@@ -190,8 +338,19 @@ class SessionController extends StateNotifier<EstadoSesion> {
     _accessToken = sesion.accessToken;
     _refreshToken = sesion.refreshToken;
     await _store.guardarRefresh(sesion.refreshToken);
-    state = EstadoSesion(usuario: sesion.usuario, restaurando: false);
+    final isRo = sesion.usuario.suscripcion?.soloLectura == true;
+    state = EstadoSesion(
+      usuario: sesion.usuario,
+      restaurando: false,
+      lifecycleState: isRo ? 'read_only' : 'active',
+      soloLecturaPorSuscripcion: isRo,
+      mensajeSoloLectura: isRo
+          ? 'Tu suscripción está vencida y en modo solo lectura.'
+          : null,
+    );
     await _guardarPerfil(sesion.usuario);
+    _iniciarTemporizadorSuscripcion();
+    unawaited(refrescarSuscripcion());
   }
 
   Future<void> _guardarPerfil(Usuario usuario) async {
@@ -277,5 +436,6 @@ final StateNotifierProvider<SessionController, EstadoSesion> sessionProvider =
         ref.watch(authApiProvider),
         ref.watch(tokenStoreProvider),
         baseLocal: ref.watch(baseLocalProvider),
+        apiClient: ref.watch(apiClientProvider),
       );
     });
