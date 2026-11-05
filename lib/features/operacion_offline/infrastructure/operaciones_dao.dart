@@ -6,12 +6,10 @@ class OperacionesDao {
   const OperacionesDao(this.base);
   final BaseLocal base;
 
-  Future<List<OperacionPendiente>> listarPendientes({String? tenantId}) async {
+  Future<List<OperacionPendiente>> listarPendientes({String? tenantId, String? usuarioId}) async {
     final db = await base.abrir();
-    final where = tenantId != null
-        ? "estado = 'PENDIENTE' AND tenant_id = ?"
-        : "estado = 'PENDIENTE'";
-    final args = tenantId != null ? [tenantId] : null;
+    final where = "estado = 'PENDIENTE'${tenantId != null ? ' AND tenant_id = ?' : ''}${usuarioId != null ? ' AND usuario_id = ?' : ''}";
+    final args = [if (tenantId != null) tenantId, if (usuarioId != null) usuarioId];
 
     final rows = await db.query(
       'operaciones_pendientes',
@@ -22,11 +20,12 @@ class OperacionesDao {
     return rows.map(OperacionPendiente.desdeFila).toList();
   }
 
-  Future<List<OperacionPendiente>> tomarParaEnvio({int limite = 50}) async {
+  Future<List<OperacionPendiente>> tomarParaEnvio({int limite = 50, String? tenantId, String? usuarioId}) async {
     final db = await base.abrir();
     final rows = await db.query(
       'operaciones_pendientes',
-      where: "estado = 'PENDIENTE' AND intentos < 5",
+      where: "estado = 'PENDIENTE' AND intentos < 5${tenantId != null ? ' AND tenant_id = ?' : ''}${usuarioId != null ? ' AND usuario_id = ?' : ''}",
+      whereArgs: [if (tenantId != null) tenantId, if (usuarioId != null) usuarioId],
       orderBy: 'creada_en ASC',
       limit: limite,
     );

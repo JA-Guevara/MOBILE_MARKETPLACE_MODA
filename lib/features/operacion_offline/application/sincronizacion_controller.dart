@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/network/api_exception.dart';
+import '../../../core/network/retry_policy.dart';
 import '../../../core/offline/base_local.dart';
 import '../../usuarios_catalogo/application/session_controller.dart';
 import '../domain/sincronizacion.dart';
@@ -13,6 +15,7 @@ class SincronizacionEstado {
     this.ultimoSync,
     this.ultimoError,
     this.ultimoResultado,
+    this.reintentarEn,
   });
 
   final bool sincronizando;
@@ -20,6 +23,7 @@ class SincronizacionEstado {
   final DateTime? ultimoSync;
   final String? ultimoError;
   final SyncBatchResponse? ultimoResultado;
+  final DateTime? reintentarEn;
 
   SincronizacionEstado copyWith({
     bool? sincronizando,
@@ -27,6 +31,8 @@ class SincronizacionEstado {
     DateTime? ultimoSync,
     String? ultimoError,
     SyncBatchResponse? ultimoResultado,
+    DateTime? reintentarEn,
+    bool limpiarEspera = false,
   }) =>
       SincronizacionEstado(
         sincronizando: sincronizando ?? this.sincronizando,
@@ -34,6 +40,7 @@ class SincronizacionEstado {
         ultimoSync: ultimoSync ?? this.ultimoSync,
         ultimoError: ultimoError,
         ultimoResultado: ultimoResultado ?? this.ultimoResultado,
+        reintentarEn: limpiarEspera ? null : reintentarEn ?? this.reintentarEn,
       );
 }
 
@@ -42,36 +49,57 @@ final sincronizacionControllerProvider =
   final base = ref.watch(baseLocalProvider);
   final dao = OperacionesDao(base);
   final api = SyncApi(ref.watch(apiClientProvider));
+  final identity = ref.watch(sessionProvider.select((s) => (s.usuario?.empresa?.id, s.usuario?.id)));
 
-  return SincronizacionController(dao: dao, api: api);
+  return SincronizacionController(dao: dao, api: api, tenantId: identity.$1, usuarioId: identity.$2,
+      habilitado: identity.$1 != null && identity.$2 != null);
 });
 
 class SincronizacionController extends StateNotifier<SincronizacionEstado> {
   SincronizacionController({
     required this.dao,
     required this.api,
-  }) : super(const SincronizacionEstado()) {
+    RetryPolicy? retryPolicy,
+    this.tenantId,
+    this.usuarioId,
+    this.habilitado = true,
+  }) : retryPolicy = retryPolicy ?? RetryPolicy(), super(const SincronizacionEstado()) {
     actualizarContadores();
   }
 
   final OperacionesDao dao;
   final SyncApi api;
+  final RetryPolicy retryPolicy;
+  final String? tenantId, usuarioId;
+  final bool habilitado;
+  Timer? _retryTimer;
+  int _intentos = 0;
+
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    super.dispose();
+  }
 
   Future<void> actualizarContadores() async {
+    if (!habilitado) return;
     try {
-      final pendientes = await dao.listarPendientes();
+      final pendientes = await dao.listarPendientes(tenantId: tenantId, usuarioId: usuarioId);
+      if (!mounted) return;
       state = state.copyWith(pendientes: pendientes.length);
     } catch (_) {}
   }
 
   Future<SyncBatchResponse?> sincronizarAhora() async {
-    if (state.sincronizando) return null;
+    if (!mounted || !habilitado || state.sincronizando) return null;
+    if (state.reintentarEn?.isAfter(DateTime.now()) ?? false) return null;
+    _retryTimer?.cancel();
 
-    state = state.copyWith(sincronizando: true, ultimoError: null);
+    state = state.copyWith(sincronizando: true, ultimoError: null, limpiarEspera: true);
     final ahora = DateTime.now();
 
     try {
-      final pendientes = await dao.tomarParaEnvio(limite: 50);
+      final pendientes = await dao.tomarParaEnvio(limite: 50, tenantId: tenantId, usuarioId: usuarioId);
       if (pendientes.isEmpty) {
         state = state.copyWith(sincronizando: false, pendientes: 0);
         return null;
@@ -99,7 +127,18 @@ class SincronizacionController extends StateNotifier<SincronizacionEstado> {
             httpStatus: 200,
           );
         } catch (e) {
-          state = state.copyWith(ultimoError: 'Error al enviar lote: $e');
+          if (!mounted) return null;
+          final retry = e is ApiException && (e.sinConexion || e.statusCode == 429 || e.statusCode == 503);
+          if (retry) {
+            _intentos += 1;
+            final wait = retryPolicy.esperaPara(_intentos, e.retryAfter);
+            state = state.copyWith(
+              ultimoError: 'En espera · reintenta en ${wait.inSeconds} s. Tus operaciones siguen pendientes.',
+              reintentarEn: DateTime.now().add(wait),
+            );
+          } else {
+            state = state.copyWith(ultimoError: 'No se pudo enviar el lote. Tus operaciones siguen pendientes.');
+          }
           await dao.registrarHistorialSync(
             iniciadoEn: ahora,
             terminadoEn: DateTime.now(),
@@ -107,23 +146,34 @@ class SincronizacionController extends StateNotifier<SincronizacionEstado> {
             confirmadas: 0,
             conflictos: 0,
             rechazadas: 0,
-            codigoError: 'NETWORK',
+            httpStatus: e is ApiException ? e.statusCode : null,
+            codigoError: e is ApiException && e.statusCode != null ? 'HTTP_${e.statusCode}' : 'NETWORK',
           );
           break;
         }
       }
 
-      final restantes = await dao.listarPendientes();
+      final restantes = await dao.listarPendientes(tenantId: tenantId, usuarioId: usuarioId);
+      if (!mounted) return null;
+      if (state.reintentarEn == null) _intentos = 0;
       state = state.copyWith(
         sincronizando: false,
         pendientes: restantes.length,
         ultimoSync: DateTime.now(),
         ultimoResultado: ultimaRespuesta,
+        ultimoError: state.ultimoError,
       );
       return ultimaRespuesta;
     } finally {
-      if (state.sincronizando) {
-        state = state.copyWith(sincronizando: false);
+      if (mounted && state.sincronizando) {
+        state = state.copyWith(sincronizando: false, ultimoError: state.ultimoError);
+      }
+      if (mounted && state.reintentarEn != null) {
+        final remaining = state.reintentarEn!.difference(DateTime.now());
+        _retryTimer?.cancel();
+        _retryTimer = Timer(remaining.isNegative ? Duration.zero : remaining, () {
+          if (mounted) unawaited(sincronizarAhora());
+        });
       }
     }
   }

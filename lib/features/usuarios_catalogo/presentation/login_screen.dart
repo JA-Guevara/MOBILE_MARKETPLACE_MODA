@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_exception.dart';
+import '../../../core/network/retry_policy.dart';
 import '../application/session_controller.dart';
 
 /// Inicio de sesión contra `/auth/login`.
@@ -44,7 +45,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await ref.read(sessionProvider.notifier).iniciarSesion(_email.text, _password.text);
       if (mounted) context.go(widget.volverA ?? '/');
     } on ApiException catch (error) {
-      setState(() => _error = error.message);
+      if (!mounted) return;
+      final wait = error.retryAfter == null ? null : RetryPolicy().esperaPara(1, error.retryAfter).inSeconds;
+      setState(() => _error = wait == null ? error.message : '${error.message} Reintentá en $wait segundos.');
     } finally {
       if (mounted) setState(() => _ocupado = false);
     }

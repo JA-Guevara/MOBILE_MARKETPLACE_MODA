@@ -7,10 +7,11 @@ import 'package:dio/dio.dart';
 /// validación falla antes de llegar al caso de uso. Los tres casos terminan en
 /// el mismo mensaje, igual que en `shared/errors.ts` del frontend web.
 class ApiException implements Exception {
-  const ApiException(this.message, {this.statusCode});
+  const ApiException(this.message, {this.statusCode, this.retryAfter});
 
   final String message;
   final int? statusCode;
+  final String? retryAfter;
 
   /// El servidor no respondió: interrupción de conexión o servicio caído.
   bool get sinConexion => statusCode == null;
@@ -24,6 +25,16 @@ class ApiException implements Exception {
       return ApiException(_sinRespuesta(error.type));
     }
     final cuerpo = respuesta.data;
+    if (respuesta.statusCode == 429 || respuesta.statusCode == 503) {
+      final wait = respuesta.headers.value('retry-after');
+      return ApiException(
+        respuesta.statusCode == 429
+            ? 'Demasiadas solicitudes. Esperá antes de volver a intentar.'
+            : 'El servicio no está disponible o está en mantenimiento. Tus operaciones pendientes se conservarán.',
+        statusCode: respuesta.statusCode,
+        retryAfter: wait,
+      );
+    }
     if (cuerpo is! Map<String, dynamic>) {
       return ApiException(
         _porEstado(respuesta.statusCode),

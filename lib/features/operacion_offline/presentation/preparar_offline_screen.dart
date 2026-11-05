@@ -6,6 +6,7 @@ import '../../../core/offline/conectividad.dart';
 import '../../../shared/widgets/indicador_conexion.dart';
 import '../../usuarios_catalogo/application/session_controller.dart';
 import '../application/catalogo_offline_controller.dart';
+import '../application/sincronizacion_controller.dart';
 import 'offline_widgets.dart';
 
 final descargaAutomaticaProvider = FutureProvider<bool>(
@@ -20,6 +21,7 @@ class PrepararOfflineScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final estado = ref.watch(catalogoOfflineProvider);
     final usuario = ref.watch(sessionProvider).usuario;
+    final sync = usuario?.puede('sync.write') == true ? ref.watch(sincronizacionControllerProvider) : null;
     final online = ref.watch(conectividadProvider).asData?.value == true;
     final control = ref.read(catalogoOfflineProvider.notifier);
     return Scaffold(
@@ -36,6 +38,17 @@ class PrepararOfflineScreen extends ConsumerWidget {
               style: Theme.of(context).textTheme.titleMedium,
             ),
           const SizedBox(height: 12),
+          if (sync != null)
+            PanelOffline(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text('${sync.pendientes} operaciones pendientes'),
+              if (sync.ultimoError != null) Text(sync.ultimoError!),
+              FilledButton.icon(
+                onPressed: !online || sync.sincronizando || sync.reintentarEn != null
+                    ? null : () => ref.read(sincronizacionControllerProvider.notifier).sincronizarAhora(),
+                icon: const Icon(Icons.sync),
+                label: Text(sync.sincronizando ? 'Sincronizando…' : 'Sincronizar pendientes'),
+              ),
+            ])),
           if (usuario == null)
             AvisoOffline(
               'Iniciá sesión con conexión para preparar el catálogo de tu empresa.',
