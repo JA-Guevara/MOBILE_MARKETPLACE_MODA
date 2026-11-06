@@ -4,6 +4,7 @@ import 'package:workmanager/workmanager.dart';
 
 import '../network/api_client.dart';
 import '../network/retry_policy.dart';
+import '../../features/usuarios_catalogo/domain/usuario.dart';
 import 'base_local.dart';
 import '../../features/operacion_offline/domain/sincronizacion.dart';
 import '../../features/operacion_offline/infrastructure/operaciones_dao.dart';
@@ -12,6 +13,12 @@ import '../../features/operacion_offline/infrastructure/sync_api.dart';
 const String kSincronizacionFondoTask = 'com.fashionstore.sincronizacion_fondo';
 const String kSincronizacionChannelId = 'fashionstore_sync_channel';
 const String kSincronizacionChannelName = 'Sincronización en segundo plano';
+
+abstract class RegistradorSincronizacion {
+  Future<void> inicializar();
+  Future<void> programar(Duration frecuencia);
+  Future<void> cancelar();
+}
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
@@ -33,6 +40,7 @@ class SincronizacionFondo {
   static Future<void> inicializar({
     bool isInDebugMode = false,
     bool omitirWorkmanager = false,
+    RegistradorSincronizacion? registrador,
   }) async {
     if (_inicializado) return;
 
@@ -70,6 +78,7 @@ class SincronizacionFondo {
 
   static Future<void> programar({
     Duration frecuencia = const Duration(minutes: 15),
+    RegistradorSincronizacion? registrador,
   }) async {
     try {
       await Workmanager().registerPeriodicTask(
@@ -98,6 +107,9 @@ class SincronizacionFondo {
     SyncApi? api,
     FlutterLocalNotificationsPlugin? notificaciones,
     RetryPolicy? retryPolicy,
+    Usuario? usuario,
+    Future<bool> Function()? hayRed,
+    DateTime Function()? ahora,
   }) async {
     final baseLocal = base ?? BaseLocal();
     final dao = OperacionesDao(baseLocal);
