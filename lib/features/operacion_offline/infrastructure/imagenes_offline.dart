@@ -18,10 +18,16 @@ class ImagenesOffline {
   }) async {
     final unicas = urls.where((u) => u.isNotEmpty).toSet();
     var numero = 0;
+    var faltantes = false;
     for (final url in unicas) {
-      await cache.getSingleFile(url);
+      try {
+        await cache.getSingleFile(url).timeout(const Duration(seconds: 8));
+      } catch (_) {
+        faltantes = true;
+      }
       progreso?.call(++numero, unicas.length);
     }
+    if (faltantes) throw StateError('No se guardaron todas las imágenes.');
   }
 
   Future<File?> leer(String url) async =>

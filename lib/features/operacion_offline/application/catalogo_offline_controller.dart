@@ -129,17 +129,28 @@ class CatalogoOfflineController extends StateNotifier<EstadoCatalogoOffline> {
         throw StateError('Tu empresa no tiene sucursales activas.');
       }
       final elegida = sucursal ?? i.sucursales.first.id;
-      state = state.copyWith(progreso: .35);
-      await imagenes.preparar(
-        i.productos.map((p) => p.imagenUrl ?? ''),
-        progreso: (n, total) {
-          if (mounted) state = state.copyWith(progreso: .35 + .5 * n / total);
-        },
-      );
-      if (!mounted) return;
       await dao.guardar(i, elegida, usuarioId: usuario!.id);
       if (!mounted) return;
       await iniciar();
+      if (!mounted) return;
+      state = state.copyWith(progreso: .35);
+      try {
+        await imagenes.preparar(
+          i.productos.map((p) => p.imagenUrl ?? ''),
+          progreso: (n, total) {
+            if (mounted) state = state.copyWith(progreso: .35 + .5 * n / total);
+          },
+        );
+      } catch (_) {
+        if (mounted) {
+          state = state.copyWith(
+            descargando: false,
+            progreso: 1,
+            error: 'El catálogo está disponible sin conexión. Faltan imágenes.',
+          );
+        }
+        return;
+      }
       if (mounted) state = state.copyWith(descargando: false, progreso: 1);
     } catch (error) {
       if (mounted) {

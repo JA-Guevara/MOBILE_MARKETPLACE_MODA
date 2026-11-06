@@ -61,16 +61,20 @@ void main() {
       c.dispose();
     }
   });
-  test('fallo al precargar imágenes conserva instantánea anterior', () async {
-    final c = CatalogoOfflineController(dao, api, imagenes, usuarioOffline());
-    addTearDown(c.dispose);
-    await c.iniciar();
-    imagenes.falla = true;
-    await c.descargar();
-    expect(c.state.version, '2026-10-23T12:00:00Z');
-    expect(c.state.error, contains('La descarga se interrumpió'));
-    expect((await dao.meta()).version, '2026-10-23T12:00:00Z');
-  });
+  test(
+    'fallo al precargar imágenes conserva el catálogo actualizado',
+    () async {
+      final c = CatalogoOfflineController(dao, api, imagenes, usuarioOffline());
+      addTearDown(c.dispose);
+      await c.iniciar();
+      imagenes.falla = true;
+      await c.descargar();
+      expect(c.state.version, '2026-10-24T12:00:00Z');
+      expect(c.state.datos.productos, hasLength(2));
+      expect(c.state.error, contains('Faltan imágenes'));
+      expect((await dao.meta()).version, '2026-10-24T12:00:00Z');
+    },
+  );
   test('bloquea descarga suspendida pero mantiene consulta', () async {
     final c = CatalogoOfflineController(
       dao,

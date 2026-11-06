@@ -39,10 +39,11 @@ class BackendFalso implements HttpClientAdapter {
         'error': {'code': 'x', 'message': 'No se pudo completar la operación.'},
       }, falla);
     }
-    return _json(
-      {'success': true, 'message': 'ok', 'data': _datoDe(options)},
-      200,
-    );
+    return _json({
+      'success': true,
+      'message': 'ok',
+      'data': _datoDe(options),
+    }, 200);
   }
 
   Object _datoDe(RequestOptions options) {
@@ -59,6 +60,16 @@ class BackendFalso implements HttpClientAdapter {
     }
     if (path == '/auth/me') return usuario;
 
+    if (path == '/public/stores') {
+      return {
+        'items': [
+          {'slug': 'tienda-a', 'trade_name': 'Tienda A'},
+        ],
+        'page': 1,
+        'pages': 1,
+        'total': 1,
+      };
+    }
     if (path == '/catalog/products') {
       return {
         'items': vacio ? [] : [prenda],
@@ -70,28 +81,32 @@ class BackendFalso implements HttpClientAdapter {
     }
     if (path.startsWith('/catalog/products/')) return prenda;
     if (path.startsWith('/catalog/')) {
-      return vacio ? [] : [
-        {'id': 'c1', 'name': 'Vestidos'},
-        {'id': 'c2', 'name': 'Poleras'},
-      ];
+      return vacio
+          ? []
+          : [
+              {'id': 'c1', 'name': 'Vestidos'},
+              {'id': 'c2', 'name': 'Poleras'},
+            ];
     }
 
     if (path == '/commerce/recommendations') return vacio ? [] : [recomendado];
     if (path == '/commerce/branches') {
-      return vacio ? [] : [
-        {'id': 'b1', 'name': 'Centro', 'address': 'Av Bush'},
-        {'id': 'b2', 'name': 'Norte', 'address': 'Av Banzer'},
-      ];
+      return vacio
+          ? []
+          : [
+              {'id': 'b1', 'name': 'Centro', 'address': 'Av Bush'},
+              {'id': 'b2', 'name': 'Norte', 'address': 'Av Banzer'},
+            ];
     }
     if (path.startsWith('/commerce/favorites/')) {
       return {'is_favorite': false, 'stock_alert': true, 'price_alert': true};
     }
     if (path == '/commerce/favorites') return vacio ? [] : [favorito];
-    if (path.startsWith('/commerce/cart')) return vacio ? carritoVacio : carrito;
+    if (path.startsWith('/commerce/cart')) {
+      return vacio ? carritoVacio : carrito;
+    }
     if (path == '/commerce/orders') {
-      return options.method == 'POST'
-          ? pedido
-          : (vacio ? [] : [pedido]);
+      return options.method == 'POST' ? pedido : (vacio ? [] : [pedido]);
     }
     if (path.endsWith('/returns') && options.method == 'GET') {
       return {
@@ -134,7 +149,8 @@ class BackendFalso implements HttpClientAdapter {
     return const <String, dynamic>{};
   }
 
-  static ResponseBody _json(Object cuerpo, int estado) => ResponseBody.fromString(
+  static ResponseBody _json(Object cuerpo, int estado) =>
+      ResponseBody.fromString(
         jsonEncode(cuerpo),
         estado,
         headers: {
@@ -148,6 +164,12 @@ class BackendFalso implements HttpClientAdapter {
   // --- Datos, calcados de lo que responde el backend real ---
 
   static const usuario = {
+    'tenant': {
+      'id': 'tienda-a',
+      'slug': 'tienda-a',
+      'trade_name': 'Tienda A',
+      'status': 'ACTIVA',
+    },
     'id': 'u1',
     'email': 'ana@test.com',
     'first_name': 'Ana',
@@ -284,8 +306,16 @@ class BackendFalso implements HttpClientAdapter {
     ],
     'tracking': [
       {'status': 'pending_payment', 'note': '', 'date': '2026-09-20T10:00:00Z'},
-      {'status': 'paid', 'note': 'Pago confirmado', 'date': '2026-09-20T11:00:00Z'},
-      {'status': 'delivered', 'note': 'Entregado', 'date': '2026-09-21T16:00:00Z'},
+      {
+        'status': 'paid',
+        'note': 'Pago confirmado',
+        'date': '2026-09-20T11:00:00Z',
+      },
+      {
+        'status': 'delivered',
+        'note': 'Entregado',
+        'date': '2026-09-21T16:00:00Z',
+      },
     ],
   };
 
@@ -321,7 +351,12 @@ class BackendFalso implements HttpClientAdapter {
     'scheduled_at': '2026-10-01T15:00:00Z',
     'notes': 'Paso después del trabajo',
     'items': [
-      {'variant_id': 'v1', 'quantity': 2, 'product': 'Vestido midi', 'size': 'S'},
+      {
+        'variant_id': 'v1',
+        'quantity': 2,
+        'product': 'Vestido midi',
+        'size': 'S',
+      },
     ],
     'tracking': [
       {'status': 'pending', 'note': '', 'date': '2026-09-21T10:00:00Z'},
@@ -359,20 +394,24 @@ Future<ProviderContainer> montarPantalla(
   // sin este stub cada pantalla con fotos falla por el canal ausente.
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(
-    const MethodChannel('plugins.flutter.io/path_provider'),
-    (call) async => '.',
-  );
+        const MethodChannel('plugins.flutter.io/path_provider'),
+        (call) async => '.',
+      );
 
-  final dio = Dio(BaseOptions(
-    baseUrl: 'http://test/api/v1',
-    validateStatus: (s) => s != null && s < 400,
-  ));
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: 'http://test/api/v1',
+      validateStatus: (s) => s != null && s < 400,
+    ),
+  );
   dio.httpClientAdapter = backend;
 
-  final contenedor = ProviderContainer(overrides: [
-    apiClientProvider.overrideWithValue(ApiClient(dio: dio)),
-    tokenStoreProvider.overrideWithValue(TokenStoreFalso()),
-  ]);
+  final contenedor = ProviderContainer(
+    overrides: [
+      apiClientProvider.overrideWithValue(ApiClient(dio: dio)),
+      tokenStoreProvider.overrideWithValue(TokenStoreFalso()),
+    ],
+  );
   addTearDown(contenedor.dispose);
 
   // `testWidgets` corre en una zona de tiempo simulado: un `await` sobre una
@@ -380,7 +419,9 @@ Future<ProviderContainer> montarPantalla(
   // nadie avanza el reloj. `runAsync` la ejecuta en la zona real.
   if (conSesion) {
     await tester.runAsync(
-      () => contenedor.read(sessionProvider.notifier).iniciarSesion('ana@test.com', 'x'),
+      () => contenedor
+          .read(sessionProvider.notifier)
+          .iniciarSesion('ana@test.com', 'x'),
     );
   }
 
@@ -393,7 +434,9 @@ Future<ProviderContainer> montarPantalla(
 
   // Las pantallas piden sus datos en `initState`; hay que dejarlas terminar
   // en la zona real antes de volver a dibujar.
-  await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+  await tester.runAsync(
+    () => Future<void>.delayed(const Duration(milliseconds: 60)),
+  );
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 100));
   return contenedor;
@@ -404,7 +447,9 @@ Future<ProviderContainer> montarPantalla(
 /// Se usa después de tocar un botón que llama al backend, por el mismo motivo
 /// que [montarPantalla] usa `runAsync`.
 Future<void> asentar(WidgetTester tester) async {
-  await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+  await tester.runAsync(
+    () => Future<void>.delayed(const Duration(milliseconds: 60)),
+  );
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 100));
 }

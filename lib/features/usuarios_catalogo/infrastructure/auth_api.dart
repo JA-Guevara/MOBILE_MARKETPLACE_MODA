@@ -11,10 +11,23 @@ class AuthApi {
 
   final ApiClient _api;
 
-  Future<Sesion> iniciarSesion(String email, String password) async {
+  Future<Sesion> iniciarSesion(String email, String password) =>
+      iniciarSesionEnEmpresa(email, password);
+
+  Future<Sesion> iniciarSesionEnEmpresa(
+    String email,
+    String password, {
+    String? empresaSlug,
+    bool plataforma = false,
+  }) async {
     final data = await _api.post<Map<String, dynamic>>(
       '/auth/login',
-      body: {'email': email.trim().toLowerCase(), 'password': password},
+      body: {
+        'email': email.trim().toLowerCase(),
+        'password': password,
+        if (empresaSlug != null) 'tenant_slug': empresaSlug,
+        if (plataforma) 'platform_login': true,
+      },
     );
     return Sesion.desdeJson(data);
   }
@@ -41,30 +54,46 @@ class AuthApi {
     required String nombre,
     required String apellido,
     String? telefono,
-  }) =>
-      _mensaje('/auth/register', body: {
-        'email': email.trim().toLowerCase(),
-        'password': password,
-        'first_name': nombre,
-        'last_name': apellido,
-        if (telefono != null && telefono.isNotEmpty) 'phone': telefono,
-      });
+  }) => _mensaje(
+    '/auth/register',
+    body: {
+      'email': email.trim().toLowerCase(),
+      'password': password,
+      'first_name': nombre,
+      'last_name': apellido,
+      if (telefono != null && telefono.isNotEmpty) 'phone': telefono,
+    },
+  );
 
-  Future<String> recuperarContrasena(String email) =>
-      _mensaje('/auth/forgot-password', body: {'email': email.trim().toLowerCase()});
+  Future<String> recuperarContrasena(String email) => _mensaje(
+    '/auth/forgot-password',
+    body: {'email': email.trim().toLowerCase()},
+  );
 
   Future<String> restablecerContrasena(String token, String nuevaContrasena) =>
-      _mensaje('/auth/reset-password', body: {'token': token, 'new_password': nuevaContrasena});
+      _mensaje(
+        '/auth/reset-password',
+        body: {'token': token, 'new_password': nuevaContrasena},
+      );
 
-  Future<String> cambiarContrasena(String contrasenaActual, String nuevaContrasena) =>
-      _mensaje('/auth/change-password',
-          body: {'current_password': contrasenaActual, 'new_password': nuevaContrasena});
+  Future<String> cambiarContrasena(
+    String contrasenaActual,
+    String nuevaContrasena,
+  ) => _mensaje(
+    '/auth/change-password',
+    body: {
+      'current_password': contrasenaActual,
+      'new_password': nuevaContrasena,
+    },
+  );
 
   Future<String> verificarCorreo(String token) =>
       _mensaje('/auth/verify-email', body: {'token': token});
 
-  Future<String> reenviarVerificacion(String email) =>
-      _mensaje('/auth/resend-verification', body: {'email': email.trim().toLowerCase()});
+  Future<String> reenviarVerificacion(String email) => _mensaje(
+    '/auth/resend-verification',
+    body: {'email': email.trim().toLowerCase()},
+  );
 
   /// Ejecuta el POST y devuelve el `message` del envoltorio. Los endpoints que
   /// no están acá devuelven datos para parsear; estos solo confirman una
@@ -72,11 +101,13 @@ class AuthApi {
   /// pantalla muestra como éxito.
   Future<String> _mensaje(String path, {Object? body}) async {
     try {
-      final respuesta = await _api.dio.post<Map<String, dynamic>>(path, data: body);
+      final respuesta = await _api.dio.post<Map<String, dynamic>>(
+        path,
+        data: body,
+      );
       return respuesta.data?['message'] as String? ?? '';
     } on DioException catch (error) {
       throw ApiException.from(error);
     }
   }
 }
-

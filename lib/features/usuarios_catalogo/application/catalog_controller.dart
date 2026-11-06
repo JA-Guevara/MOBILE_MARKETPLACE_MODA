@@ -31,15 +31,14 @@ class FiltrosCatalogo {
     String? minPrecio,
     String? maxPrecio,
     bool? soloDestacadas,
-  }) =>
-      FiltrosCatalogo(
-        busqueda: busqueda ?? this.busqueda,
-        categoriaId: categoriaId ?? this.categoriaId,
-        marca: marca ?? this.marca,
-        minPrecio: minPrecio ?? this.minPrecio,
-        maxPrecio: maxPrecio ?? this.maxPrecio,
-        soloDestacadas: soloDestacadas ?? this.soloDestacadas,
-      );
+  }) => FiltrosCatalogo(
+    busqueda: busqueda ?? this.busqueda,
+    categoriaId: categoriaId ?? this.categoriaId,
+    marca: marca ?? this.marca,
+    minPrecio: minPrecio ?? this.minPrecio,
+    maxPrecio: maxPrecio ?? this.maxPrecio,
+    soloDestacadas: soloDestacadas ?? this.soloDestacadas,
+  );
 }
 
 /// Estado del catálogo: lista acumulada, paginación y filtros.
@@ -82,19 +81,18 @@ class EstadoCatalogo {
     bool? cargandoMas,
     String? error,
     bool limpiarError = false,
-  }) =>
-      EstadoCatalogo(
-        productos: productos ?? this.productos,
-        categorias: categorias ?? this.categorias,
-        recomendados: recomendados ?? this.recomendados,
-        filtros: filtros ?? this.filtros,
-        pagina: pagina ?? this.pagina,
-        paginas: paginas ?? this.paginas,
-        total: total ?? this.total,
-        cargando: cargando ?? this.cargando,
-        cargandoMas: cargandoMas ?? this.cargandoMas,
-        error: limpiarError ? null : (error ?? this.error),
-      );
+  }) => EstadoCatalogo(
+    productos: productos ?? this.productos,
+    categorias: categorias ?? this.categorias,
+    recomendados: recomendados ?? this.recomendados,
+    filtros: filtros ?? this.filtros,
+    pagina: pagina ?? this.pagina,
+    paginas: paginas ?? this.paginas,
+    total: total ?? this.total,
+    cargando: cargando ?? this.cargando,
+    cargandoMas: cargandoMas ?? this.cargandoMas,
+    error: limpiarError ? null : (error ?? this.error),
+  );
 }
 
 /// Dueño del catálogo (la portada de la app). Carga por páginas a medida que se
@@ -107,13 +105,13 @@ class CatalogController extends StateNotifier<EstadoCatalogo> {
 
   Future<void> iniciar() async {
     await Future.wait([cargarReferencias(), cargarRecomendaciones()]);
-    await cargarInicial();
+    if (mounted) await cargarInicial();
   }
 
   Future<void> cargarReferencias() async {
     try {
       final categorias = await _api.referencias('categories');
-      state = state.copyWith(categorias: categorias);
+      if (mounted) state = state.copyWith(categorias: categorias);
     } on ApiException {
       // Los filtros son opcionales: si fallan, el catálogo igual se ve.
     }
@@ -122,7 +120,7 @@ class CatalogController extends StateNotifier<EstadoCatalogo> {
   Future<void> cargarRecomendaciones() async {
     try {
       final recomendados = await _api.recomendaciones();
-      state = state.copyWith(recomendados: recomendados);
+      if (mounted) state = state.copyWith(recomendados: recomendados);
     } on ApiException {
       // Sección opcional.
     }
@@ -132,6 +130,7 @@ class CatalogController extends StateNotifier<EstadoCatalogo> {
     state = state.copyWith(cargando: true, limpiarError: true);
     try {
       final pagina = await _pedir(1);
+      if (!mounted) return;
       state = state.copyWith(
         productos: pagina.items,
         pagina: pagina.page,
@@ -140,7 +139,9 @@ class CatalogController extends StateNotifier<EstadoCatalogo> {
         cargando: false,
       );
     } on ApiException catch (error) {
-      state = state.copyWith(cargando: false, error: error.message);
+      if (mounted) {
+        state = state.copyWith(cargando: false, error: error.message);
+      }
     }
   }
 
@@ -149,6 +150,7 @@ class CatalogController extends StateNotifier<EstadoCatalogo> {
     state = state.copyWith(cargandoMas: true);
     try {
       final siguiente = await _pedir(state.pagina + 1);
+      if (!mounted) return;
       state = state.copyWith(
         productos: [...state.productos, ...siguiente.items],
         pagina: siguiente.page,
@@ -157,7 +159,9 @@ class CatalogController extends StateNotifier<EstadoCatalogo> {
         cargandoMas: false,
       );
     } on ApiException catch (error) {
-      state = state.copyWith(cargandoMas: false, error: error.message);
+      if (mounted) {
+        state = state.copyWith(cargandoMas: false, error: error.message);
+      }
     }
   }
 
@@ -169,18 +173,19 @@ class CatalogController extends StateNotifier<EstadoCatalogo> {
   Future<void> reintentar() => cargarInicial();
 
   Future<Page<Producto>> _pedir(int page) => _api.productos(
-        page: page,
-        pageSize: _tamanoPagina,
-        search: state.filtros.busqueda,
-        categoryId: state.filtros.categoriaId,
-        brand: state.filtros.marca,
-        minPrice: state.filtros.minPrecio,
-        maxPrice: state.filtros.maxPrecio,
-        destacadas: state.filtros.soloDestacadas,
-      );
+    page: page,
+    pageSize: _tamanoPagina,
+    search: state.filtros.busqueda,
+    categoryId: state.filtros.categoriaId,
+    brand: state.filtros.marca,
+    minPrice: state.filtros.minPrecio,
+    maxPrice: state.filtros.maxPrecio,
+    destacadas: state.filtros.soloDestacadas,
+  );
 }
 
 final StateNotifierProvider<CatalogController, EstadoCatalogo> catalogProvider =
-    StateNotifierProvider<CatalogController, EstadoCatalogo>(
-        (ref) => CatalogController(CatalogApi(ref.watch(apiClientProvider))));
-
+    StateNotifierProvider<CatalogController, EstadoCatalogo>((ref) {
+      ref.watch(tiendaCatalogoProvider);
+      return CatalogController(CatalogApi(ref.watch(apiClientProvider)));
+    });

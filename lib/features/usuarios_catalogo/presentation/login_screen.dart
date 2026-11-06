@@ -24,6 +24,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formulario = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _codigo = TextEditingController();
+  String? _empresa;
   bool _ocupado = false;
   bool _oculta = true;
   String? _error;
@@ -32,6 +34,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _codigo.dispose();
     super.dispose();
   }
 
@@ -42,12 +45,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
     });
     try {
-      await ref.read(sessionProvider.notifier).iniciarSesion(_email.text, _password.text);
+      final plataforma = _empresa == '__platform__';
+      final slug = _empresa == '__custom__' ? _codigo.text.trim() : _empresa;
+      await ref
+          .read(sessionProvider.notifier)
+          .iniciarSesion(
+            _email.text,
+            _password.text,
+            empresaSlug: plataforma ? null : slug,
+            plataforma: plataforma,
+          );
+      if (!mounted) return;
+      ref.read(tiendaPublicaSeleccionadaProvider.notifier).state = null;
       if (mounted) context.go(widget.volverA ?? '/');
     } on ApiException catch (error) {
       if (!mounted) return;
-      final wait = error.retryAfter == null ? null : RetryPolicy().esperaPara(1, error.retryAfter).inSeconds;
-      setState(() => _error = wait == null ? error.message : '${error.message} Reintentá en $wait segundos.');
+      final wait = error.retryAfter == null
+          ? null
+          : RetryPolicy().esperaPara(1, error.retryAfter).inSeconds;
+      setState(
+        () => _error = wait == null
+            ? error.message
+            : '${error.message} Reintentá en $wait segundos.',
+      );
     } finally {
       if (mounted) setState(() => _ocupado = false);
     }
@@ -55,13 +75,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final tiendas = ref.watch(tiendasPublicasProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Iniciar sesión')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            Text('FashionStore', style: Theme.of(context).textTheme.headlineSmall),
+            Text(
+              'FashionStore',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
             const SizedBox(height: 4),
             const Text('Entrá para comprar, reservar y usar el probador.'),
             const SizedBox(height: 24),
@@ -69,12 +93,58 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               key: _formulario,
               child: Column(
                 children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: _empresa,
+                    decoration: const InputDecoration(
+                      labelText: 'Empresa o tienda',
+                    ),
+                    isExpanded: true,
+                    items: [
+                      const DropdownMenuItem(
+                        value: '__platform__',
+                        child: Text('Administración de plataforma'),
+                      ),
+                      for (final tienda in tiendas.asData?.value ?? const [])
+                        DropdownMenuItem(
+                          value: tienda.slug,
+                          child: Text(tienda.nombre),
+                        ),
+                      const DropdownMenuItem(
+                        value: '__custom__',
+                        child: Text('Ingresar código de empresa'),
+                      ),
+                    ],
+                    onChanged: _ocupado
+                        ? null
+                        : (value) => setState(() => _empresa = value),
+                    validator: (value) => value == null
+                        ? 'Elegí una empresa o plataforma.'
+                        : null,
+                  ),
+                  if (_empresa == '__custom__')
+                    TextFormField(
+                      controller: _codigo,
+                      decoration: const InputDecoration(
+                        labelText: 'Código de empresa',
+                      ),
+                      validator: (value) =>
+                          RegExp(
+                            r'^[a-z0-9][a-z0-9_-]{0,59}$',
+                          ).hasMatch(value?.trim() ?? '')
+                          ? null
+                          : 'Ingresá el código de tu empresa.',
+                    ),
+                  const SizedBox(height: 12),
                   TextFormField(
                     controller: _email,
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [AutofillHints.email],
-                    decoration: const InputDecoration(labelText: 'Correo electrónico'),
-                    validator: (valor) => (valor ?? '').contains('@') ? null : 'Ingresá un correo válido.',
+                    decoration: const InputDecoration(
+                      labelText: 'Correo electrónico',
+                    ),
+                    validator: (valor) => (valor ?? '').contains('@')
+                        ? null
+                        : 'Ingresá un correo válido.',
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -85,7 +155,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       labelText: 'Contraseña',
                       suffixIcon: IconButton(
                         onPressed: () => setState(() => _oculta = !_oculta),
-                        icon: Icon(_oculta ? Icons.visibility : Icons.visibility_off),
+                        icon: Icon(
+                          _oculta ? Icons.visibility : Icons.visibility_off,
+                        ),
                         tooltip: _oculta ? 'Mostrar' : 'Ocultar',
                       ),
                     ),
@@ -108,7 +180,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               onPressed: _ocupado ? null : _entrar,
               child: _ocupado
                   ? const SizedBox(
-                      height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Text('Entrar'),
             ),
             TextButton(
@@ -140,4 +215,3 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 }
-

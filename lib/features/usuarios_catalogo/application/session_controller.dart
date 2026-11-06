@@ -68,18 +68,17 @@ class EstadoSesion {
     String? readOnlySince,
     bool? soloLecturaPorSuscripcion,
     String? mensajeSoloLectura,
-  }) =>
-      EstadoSesion(
-        usuario: usuario ?? this.usuario,
-        restaurando: restaurando ?? this.restaurando,
-        sinConexion: sinConexion ?? this.sinConexion,
-        lifecycleState: lifecycleState ?? this.lifecycleState,
-        graceUntil: graceUntil ?? this.graceUntil,
-        readOnlySince: readOnlySince ?? this.readOnlySince,
-        soloLecturaPorSuscripcion:
-            soloLecturaPorSuscripcion ?? this.soloLecturaPorSuscripcion,
-        mensajeSoloLectura: mensajeSoloLectura ?? this.mensajeSoloLectura,
-      );
+  }) => EstadoSesion(
+    usuario: usuario ?? this.usuario,
+    restaurando: restaurando ?? this.restaurando,
+    sinConexion: sinConexion ?? this.sinConexion,
+    lifecycleState: lifecycleState ?? this.lifecycleState,
+    graceUntil: graceUntil ?? this.graceUntil,
+    readOnlySince: readOnlySince ?? this.readOnlySince,
+    soloLecturaPorSuscripcion:
+        soloLecturaPorSuscripcion ?? this.soloLecturaPorSuscripcion,
+    mensajeSoloLectura: mensajeSoloLectura ?? this.mensajeSoloLectura,
+  );
 }
 
 /// Dueño de la sesión: tokens, usuario y renovación.
@@ -92,9 +91,9 @@ class SessionController extends StateNotifier<EstadoSesion> {
     this._store, {
     BaseLocal? baseLocal,
     ApiClient? apiClient,
-  })  : _base = baseLocal,
-        _client = apiClient,
-        super(const EstadoSesion());
+  }) : _base = baseLocal,
+       _client = apiClient,
+       super(const EstadoSesion());
   final BaseLocal? _base;
   final ApiClient? _client;
 
@@ -129,7 +128,8 @@ class SessionController extends StateNotifier<EstadoSesion> {
     state = state.copyWith(
       lifecycleState: 'read_only',
       soloLecturaPorSuscripcion: true,
-      mensajeSoloLectura: mensaje ??
+      mensajeSoloLectura:
+          mensaje ??
           'Modo solo lectura activado. Las ventas y reservas están bloqueadas.',
     );
   }
@@ -160,7 +160,9 @@ class SessionController extends StateNotifier<EstadoSesion> {
     final client = _client;
     if (client == null) return;
     try {
-      final res = await client.get<Map<String, dynamic>>('/tenant/subscription');
+      final res = await client.get<Map<String, dynamic>>(
+        '/tenant/subscription',
+      );
       final current = res['current'] is Map<String, dynamic>
           ? res['current'] as Map<String, dynamic>
           : res;
@@ -182,7 +184,9 @@ class SessionController extends StateNotifier<EstadoSesion> {
       if (e.statusCode == 403 &&
           (e.message.contains('subscription_read_only') ||
               e.message.contains('solo lectura'))) {
-        marcarSoloLectura('Tu suscripción está vencida y en modo solo lectura.');
+        marcarSoloLectura(
+          'Tu suscripción está vencida y en modo solo lectura.',
+        );
       }
     } catch (_) {
       // Sin conexión o fallo temporal: se conserva el estado actual
@@ -214,8 +218,21 @@ class SessionController extends StateNotifier<EstadoSesion> {
     }
   }
 
-  Future<void> iniciarSesion(String email, String password) async {
-    await _aplicar(await _api.iniciarSesion(email, password));
+  Future<void> iniciarSesion(
+    String email,
+    String password, {
+    String? empresaSlug,
+    bool plataforma = false,
+  }) async {
+    final sesion = empresaSlug == null && !plataforma
+        ? await _api.iniciarSesion(email, password)
+        : await _api.iniciarSesionEnEmpresa(
+            email,
+            password,
+            empresaSlug: empresaSlug,
+            plataforma: plataforma,
+          );
+    await _aplicar(sesion);
   }
 
   /// Crea la cuenta y devuelve el mensaje del servidor. No abre sesión: el
@@ -400,12 +417,44 @@ final Provider<TokenStore> tokenStoreProvider = Provider<TokenStore>(
 // la sesión recién cuando sale una petición, con todo ya construido.
 // El tipo va escrito a mano porque los tres proveedores se referencian entre
 // sí y Dart no puede inferirlo solo.
+final tiendaPublicaSeleccionadaProvider =
+    StateProvider<({String slug, String nombre})?>((ref) => null);
+
+final tiendaCatalogoProvider = Provider<String?>((ref) {
+  final seleccion = ref.watch(tiendaPublicaSeleccionadaProvider);
+  final empresa = ref.watch(sessionProvider.select((s) => s.usuario?.empresa));
+  return empresa?.slug ?? seleccion?.slug;
+});
+
+final tiendasPublicasProvider =
+    FutureProvider<List<({String slug, String nombre})>>((ref) async {
+      final client = ref.watch(apiClientProvider);
+      final response = await client.get<Map<String, dynamic>>(
+        '/public/stores',
+        query: {'page_size': 100},
+      );
+      return (response['items'] as List<dynamic>? ?? []).map((value) {
+        final store = value as Map<String, dynamic>;
+        return (
+          slug: store['slug'] as String,
+          nombre: store['trade_name'] as String,
+        );
+      }).toList();
+    });
+
 final Provider<ApiClient> apiClientProvider = Provider<ApiClient>((ref) {
   final cliente = ApiClient();
   cliente.dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) {
+        final path = options.path;
+        final storefront =
+            path.startsWith('/catalog/') ||
+            path.startsWith('/commerce/') ||
+            path.startsWith('/vestidor/') ||
+            path.startsWith('/tryon-ai/');
         options.headers['X-Tenant-Slug'] =
+            (storefront ? ref.read(tiendaCatalogoProvider) : null) ??
             ref.read(sessionProvider).usuario?.empresa?.slug ??
             Environment.tenantSlug;
         handler.next(options);

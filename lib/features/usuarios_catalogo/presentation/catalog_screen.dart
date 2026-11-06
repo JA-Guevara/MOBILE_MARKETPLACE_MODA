@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/formato.dart';
 import '../../reservas_vestidor/application/reservas_controller.dart';
 import '../application/catalog_controller.dart';
+import '../application/session_controller.dart';
 import '../domain/producto.dart';
 
 /// Portada de la app: el catálogo (RF07).
@@ -32,7 +33,11 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     super.initState();
     _busqueda.text = ref.read(catalogProvider).filtros.busqueda;
     _scroll.addListener(_alLlegarAbajo);
-    Future.microtask(() => ref.read(catalogProvider.notifier).iniciar());
+    if (ref.read(tiendaCatalogoProvider) != null || widget.paraReserva) {
+      Future.microtask(() {
+        if (mounted) ref.read(catalogProvider.notifier).iniciar();
+      });
+    }
   }
 
   @override
@@ -64,9 +69,79 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     ref.read(catalogProvider.notifier).aplicarFiltros(const FiltrosCatalogo());
   }
 
+  Widget _selectorTiendas(
+    AsyncValue<List<({String slug, String nombre})>> tiendas,
+    String? slug,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: tiendas.when(
+        loading: () => const Text('Cargando tiendas…'),
+        error: (_, _) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('No pudimos cargar las tiendas.'),
+            TextButton(
+              onPressed: () => ref.invalidate(tiendasPublicasProvider),
+              child: const Text('Reintentar'),
+            ),
+            TextButton(
+              onPressed: () => context.go('/sin-conexion'),
+              child: const Text('Abrir modo sin conexión'),
+            ),
+          ],
+        ),
+        data: (lista) {
+          if (lista.isEmpty) {
+            return const Text('Todavía no hay tiendas publicadas.');
+          }
+          final seleccion = lista.any((t) => t.slug == slug) ? slug : null;
+          return DropdownButtonFormField<String>(
+            key: ValueKey(seleccion),
+            initialValue: seleccion,
+            decoration: const InputDecoration(labelText: 'Tienda'),
+            isExpanded: true,
+            hint: const Text('Elegí una tienda para ver su catálogo'),
+            items: [
+              for (final tienda in lista)
+                DropdownMenuItem(
+                  value: tienda.slug,
+                  child: Text(tienda.nombre),
+                ),
+            ],
+            onChanged: (value) {
+              final tienda = lista.firstWhere((t) => t.slug == value);
+              ref.read(tiendaPublicaSeleccionadaProvider.notifier).state =
+                  tienda;
+            },
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
+    final slug = ref.watch(tiendaCatalogoProvider);
+    final seleccionPublica = ref.watch(tiendaPublicaSeleccionadaProvider);
+    final empresa = ref.watch(
+      sessionProvider.select((s) => s.usuario?.empresa),
+    );
+    final tiendas = widget.paraReserva || empresa != null
+        ? null
+        : ref.watch(tiendasPublicasProvider);
+    ref.listen(tiendaCatalogoProvider, (anterior, siguiente) {
+      if (anterior == siguiente) return;
+      _busqueda.clear();
+      if (siguiente != null) {
+        Future.microtask(() {
+          if (mounted && ref.read(tiendaCatalogoProvider) == siguiente) {
+            ref.read(catalogProvider.notifier).iniciar();
+          }
+        });
+      }
+    });
     final estado = ref.watch(catalogProvider);
     final seleccion = widget.paraReserva
         ? ref.watch(nuevaReservaProvider)
@@ -74,7 +149,11 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.paraReserva ? 'Elegir prendas' : 'FashionStore'),
+        title: Text(
+          widget.paraReserva
+              ? 'Elegir prendas'
+              : empresa?.nombre ?? seleccionPublica?.nombre ?? 'FashionStore',
+        ),
       ),
       bottomNavigationBar: widget.paraReserva
           ? SafeArea(
@@ -90,98 +169,104 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
               ),
             )
           : null,
-      body: RefreshIndicator(
-        onRefresh: () => ref.read(catalogProvider.notifier).cargarInicial(),
-        child: CustomScrollView(
-          controller: _scroll,
-          slivers: [
-            SliverToBoxAdapter(
-              child: _Hero(tema: tema, total: estado.total),
-            ),
-            SliverToBoxAdapter(
-              child: _Filtros(
-                busqueda: _busqueda,
-                estado: estado,
-                visibles: _filtrosVisibles,
-                alternarVisibles: () =>
-                    setState(() => _filtrosVisibles = !_filtrosVisibles),
-                onBuscar: () => _aplicarFiltros(),
-                onLimpiar: _limpiar,
-                onCategoria: (id) => _aplicarFiltros(
-                  cambios: estado.filtros.copyWith(categoriaId: id),
-                ),
-                onDestacadas: (valor) => _aplicarFiltros(
-                  cambios: estado.filtros.copyWith(soloDestacadas: valor),
-                ),
-              ),
-            ),
-            if (estado.cargando)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (estado.error != null && estado.productos.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: _Error(
-                  mensaje: estado.error!,
-                  onReintentar: () =>
-                      ref.read(catalogProvider.notifier).reintentar(),
-                ),
-              )
-            else if (estado.productos.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: _Vacio(onLimpiar: _limpiar),
-              )
-            else
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.62,
+      body: slug == null && !widget.paraReserva
+          ? _selectorTiendas(tiendas!, slug)
+          : RefreshIndicator(
+              onRefresh: () =>
+                  ref.read(catalogProvider.notifier).cargarInicial(),
+              child: CustomScrollView(
+                controller: _scroll,
+                slivers: [
+                  if (tiendas != null)
+                    SliverToBoxAdapter(child: _selectorTiendas(tiendas, slug)),
+                  SliverToBoxAdapter(
+                    child: _Hero(tema: tema, total: estado.total),
                   ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, indice) => _TarjetaProducto(
-                      producto: estado.productos[indice],
-                      paraReserva: widget.paraReserva,
+                  SliverToBoxAdapter(
+                    child: _Filtros(
+                      busqueda: _busqueda,
+                      estado: estado,
+                      visibles: _filtrosVisibles,
+                      alternarVisibles: () =>
+                          setState(() => _filtrosVisibles = !_filtrosVisibles),
+                      onBuscar: () => _aplicarFiltros(),
+                      onLimpiar: _limpiar,
+                      onCategoria: (id) => _aplicarFiltros(
+                        cambios: estado.filtros.copyWith(categoriaId: id),
+                      ),
+                      onDestacadas: (valor) => _aplicarFiltros(
+                        cambios: estado.filtros.copyWith(soloDestacadas: valor),
+                      ),
                     ),
-                    childCount: estado.productos.length,
                   ),
-                ),
+                  if (estado.cargando)
+                    const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (estado.error != null && estado.productos.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _Error(
+                        mensaje: estado.error!,
+                        onReintentar: () =>
+                            ref.read(catalogProvider.notifier).reintentar(),
+                      ),
+                    )
+                  else if (estado.productos.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _Vacio(onLimpiar: _limpiar),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      sliver: SliverGrid(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 16,
+                              crossAxisSpacing: 12,
+                              childAspectRatio: 0.62,
+                            ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, indice) => _TarjetaProducto(
+                            producto: estado.productos[indice],
+                            paraReserva: widget.paraReserva,
+                          ),
+                          childCount: estado.productos.length,
+                        ),
+                      ),
+                    ),
+                  if (estado.cargandoMas)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    ),
+                  if (estado.error != null && estado.productos.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: _Error(
+                          mensaje: estado.error!,
+                          onReintentar: () =>
+                              ref.read(catalogProvider.notifier).cargarMas(),
+                        ),
+                      ),
+                    ),
+                  if (estado.recomendados.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: _Recomendados(
+                        items: estado.recomendados,
+                        paraReserva: widget.paraReserva,
+                      ),
+                    ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                ],
               ),
-            if (estado.cargandoMas)
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              ),
-            if (estado.error != null && estado.productos.isNotEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: _Error(
-                    mensaje: estado.error!,
-                    onReintentar: () =>
-                        ref.read(catalogProvider.notifier).cargarMas(),
-                  ),
-                ),
-              ),
-            if (estado.recomendados.isNotEmpty)
-              SliverToBoxAdapter(
-                child: _Recomendados(
-                  items: estado.recomendados,
-                  paraReserva: widget.paraReserva,
-                ),
-              ),
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
-          ],
-        ),
-      ),
+            ),
     );
   }
 }
