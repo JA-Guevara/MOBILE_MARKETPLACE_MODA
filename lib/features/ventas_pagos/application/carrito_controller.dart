@@ -267,6 +267,7 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
     if (!mounted || lectura != _ultimaLectura) return;
     state = state.copyWith(
       carrito: carrito,
+      metodoPago: carrito.tarjetaDisponible ? state.metodoPago : 'manual',
       // Un pedido anterior no debe reemplazar la acción de crear uno nuevo
       // cuando el servidor ya confirma que hay prendas otra vez.
       limpiarUltimoPedido: carrito.items.isNotEmpty,
@@ -322,6 +323,7 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
         state = state.copyWith(
           sucursalId: sucursal.id,
           carrito: prueba,
+          metodoPago: prueba.tarjetaDisponible ? state.metodoPago : 'manual',
           ningunaSucursalCubre: false,
         );
         return;
@@ -438,8 +440,10 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
   void alternarGuardarEnPerfil(bool valor) =>
       state = state.copyWith(guardarEnPerfil: valor);
 
-  void elegirMetodoPago(String metodo) =>
-      state = state.copyWith(metodoPago: metodo);
+  void elegirMetodoPago(String metodo) {
+    if (metodo == 'stripe' && state.carrito?.tarjetaDisponible != true) return;
+    state = state.copyWith(metodoPago: metodo);
+  }
 
   /// Crea el pedido y devuelve la URL de pago si el método es Stripe.
   ///

@@ -135,6 +135,7 @@ class Carrito {
     this.couponCode,
     this.total = 0,
     this.currency = 'BOB',
+    this.tarjetaDisponible = false,
   });
 
   final List<ItemCarrito> items;
@@ -144,6 +145,7 @@ class Carrito {
   final String? couponCode;
   final double total;
   final String currency;
+  final bool tarjetaDisponible;
 
   factory Carrito.desdeJson(Map<String, dynamic> json) => Carrito(
     items: (json['items'] as List<dynamic>? ?? const [])
@@ -157,6 +159,7 @@ class Carrito {
     couponCode: json['coupon_code'] as String?,
     total: _monto(json['total']),
     currency: json['currency'] as String? ?? 'BOB',
+    tarjetaDisponible: json['card_payments_available'] == true,
   );
 
   bool get vacio => items.isEmpty;

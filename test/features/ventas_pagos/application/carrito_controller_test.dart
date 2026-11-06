@@ -27,6 +27,7 @@ class _ServidorFalso implements HttpClientAdapter {
   String? ultimaSucursalConsultada;
   bool conDescuento = false;
   bool respuestaStripeInvalida = false;
+  bool tarjetaDisponible = true;
   List<Map<String, dynamic>> direcciones = [];
 
   @override
@@ -63,7 +64,8 @@ class _ServidorFalso implements HttpClientAdapter {
     // El cupón se manda como parámetro del GET del carrito.
     if (options.path == '/commerce/cart') {
       conDescuento = options.queryParameters['coupon_code'] == 'VERANO';
-      ultimaSucursalConsultada = options.queryParameters['branch_id'] as String?;
+      ultimaSucursalConsultada =
+          options.queryParameters['branch_id'] as String?;
     }
 
     return _json({
@@ -107,6 +109,7 @@ class _ServidorFalso implements HttpClientAdapter {
   }
 
   Map<String, dynamic> _carrito() => {
+    'card_payments_available': tarjetaDisponible,
     'items': cantidad == 0
         ? []
         : [
@@ -403,6 +406,14 @@ void main() {
       // El pedido usa `recipient`/`line1`, no los nombres del perfil.
       expect((cuerpo['address'] as Map)['recipient'], 'Ana Vargas');
       expect((cuerpo['address'] as Map)['line1'], 'Calle Falsa 123');
+    });
+
+    test('una tienda sin cuenta activa conserva el método manual', () async {
+      final control = construir();
+      servidor.tarjetaDisponible = false;
+      await control.cargar();
+      control.elegirMetodoPago('stripe');
+      expect(control.state.metodoPago, 'manual');
     });
 
     test('con método manual no pide la sesión de Stripe', () async {

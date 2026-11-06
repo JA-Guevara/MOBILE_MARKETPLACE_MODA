@@ -612,19 +612,20 @@ class _MetodoPago extends StatelessWidget {
         RadioGroup<String>(
           groupValue: estado.metodoPago,
           onChanged: (v) => onElegir(v ?? 'manual'),
-          child: const Column(
+          child: Column(
             children: [
-              RadioListTile<String>(
+              const RadioListTile<String>(
                 value: 'manual',
                 contentPadding: EdgeInsets.zero,
                 title: Text('Coordinar efectivo o transferencia'),
               ),
-              RadioListTile<String>(
-                value: 'stripe',
-                contentPadding: EdgeInsets.zero,
-                title: Text('Tarjeta · Stripe'),
-                subtitle: Text('Se abre en el navegador y volvés a la app.'),
-              ),
+              if (estado.carrito?.tarjetaDisponible == true)
+                const RadioListTile<String>(
+                  value: 'stripe',
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Tarjeta · Stripe'),
+                  subtitle: Text('Se abre en el navegador y volvés a la app.'),
+                ),
             ],
           ),
         ),
