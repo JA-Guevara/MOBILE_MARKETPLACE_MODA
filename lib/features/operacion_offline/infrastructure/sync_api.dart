@@ -5,14 +5,41 @@ class SyncApi {
   const SyncApi(this._api);
   final ApiClient _api;
 
-  Future<SyncBatchResponse> postBatch(List<SyncOperationWire> operaciones) async {
+  Future<SyncBatchResponse> postBatch(
+    List<SyncOperationWire> operaciones,
+  ) async {
+    if (operaciones.isEmpty) {
+      throw ArgumentError('El lote no puede estar vacío.');
+    }
+    if (operaciones.map((op) => op.deviceId).toSet().length != 1) {
+      throw ArgumentError('Un lote debe pertenecer a un solo dispositivo.');
+    }
     final res = await _api.post<Map<String, dynamic>>(
       '/sync/batch',
       body: {
+        'device_id': operaciones.first.deviceId,
+        'client_version': const String.fromEnvironment(
+          'APP_VERSION',
+          defaultValue: '0.1.0',
+        ),
         'operations': operaciones.map((o) => o.toJson()).toList(),
       },
     );
-    return SyncBatchResponse.fromJson(res);
+    final results = (res['results'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
+    return SyncBatchResponse.fromJson({
+      ...res,
+      'received': res['received'] ?? operaciones.length,
+      'confirmed':
+          res['confirmed'] ??
+          results.where((r) => r['status'] == 'CONFIRMED').length,
+      'conflicts':
+          res['conflicts'] ??
+          results.where((r) => r['status'] == 'CONFLICT').length,
+      'rejected':
+          res['rejected'] ??
+          results.where((r) => r['status'] == 'REJECTED').length,
+    });
   }
 
   Future<Map<String, dynamic>> obtenerConflictos({
