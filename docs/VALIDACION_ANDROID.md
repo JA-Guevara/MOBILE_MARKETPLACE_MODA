@@ -13,7 +13,11 @@ Se reprodujo y corrigió el fallo de inicio «No pudimos cargar las tiendas»: l
 
 Pruebas específicas: `test/core/public_stores_integration_test.dart`, `test/core/account_scope_test.dart`, `test/features/usuarios_catalogo/inicio_tiendas_test.dart`. La consulta externa se activa con `--dart-define=RUN_PUBLIC_API_SMOKE=true`; nunca usa cuentas o contraseñas reales.
 
-Compilación e instalación de la actualización 0.1.2: en curso. Los resultados del 04/11 de abajo se conservan como registro histórico y no describen el estado actual de la APK.
+**0.1.2 instalada el 07/11/2026:** compilada desde el código `4c62f82`, actualización por USB completada con `Success`, versión 0.1.2 / código 3 confirmada por Android. Se inició la aplicación y no se observaron errores circulares o de base local en los registros accesibles del proceso. No se borró el almacenamiento.
+
+APK entregada en `../entregables/mobile/FashionStore-0.1.2-debug.apk`, SHA-256 `354C8109DAA2A8EDC0570B915531641C3AB3D7E9C6B64492FCF81C425CCAD1AC`. Es una compilación debug para prueba, no un lanzamiento firmado para tienda. La confirmación del usuario sobre la lista de tiendas corresponde a la actualización 0.1.1 previa; la instalación 0.1.2 incorpora el mismo arreglo más las protecciones posteriores.
+
+Falta completar en el teléfono un recorrido autenticado y el ciclo modo avión → operación → reapertura → sincronización. Las pruebas automatizadas cubren esos componentes, pero no se procesaron cobros, cambios ni ventas reales en este dispositivo. Los resultados del 04/11 de abajo se conservan como registro histórico y no describen el estado actual de la APK.
 
 ## Registro histórico del 04/11/2026
 
