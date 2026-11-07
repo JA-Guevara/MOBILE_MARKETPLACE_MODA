@@ -31,6 +31,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _empresa = ref.read(tiendaPublicaSeleccionadaProvider)?.slug;
+  }
+
+  @override
   void dispose() {
     _email.dispose();
     _password.dispose();
@@ -100,6 +106,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     isExpanded: true,
                     items: [
+                      if (_empresa != null &&
+                          !_empresa!.startsWith('__') &&
+                          !(tiendas.asData?.value ?? const []).any(
+                            (t) => t.slug == _empresa,
+                          ))
+                        DropdownMenuItem(
+                          value: _empresa,
+                          child: Text(
+                            ref
+                                    .read(tiendaPublicaSeleccionadaProvider)
+                                    ?.nombre ??
+                                _empresa!,
+                          ),
+                        ),
                       const DropdownMenuItem(
                         value: '__platform__',
                         child: Text('Administración de plataforma'),
@@ -116,11 +136,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ],
                     onChanged: _ocupado
                         ? null
-                        : (value) => setState(() => _empresa = value),
+                        : (value) {
+                            setState(() => _empresa = value);
+                            final matches = (tiendas.asData?.value ?? const [])
+                                .where((t) => t.slug == value);
+                            ref
+                                .read(
+                                  tiendaPublicaSeleccionadaProvider.notifier,
+                                )
+                                .state = matches.isEmpty
+                                ? null
+                                : matches.first;
+                          },
                     validator: (value) => value == null
                         ? 'Elegí una empresa o plataforma.'
                         : null,
                   ),
+                  if (tiendas.isLoading)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: LinearProgressIndicator(),
+                    ),
+                  if (tiendas.hasError) ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'No se pudo actualizar la lista de empresas. Podés reintentar o ingresar su código.',
+                    ),
+                    TextButton(
+                      onPressed: () => ref.invalidate(tiendasPublicasProvider),
+                      child: const Text('Actualizar empresas'),
+                    ),
+                  ],
                   if (_empresa == '__custom__')
                     TextFormField(
                       controller: _codigo,

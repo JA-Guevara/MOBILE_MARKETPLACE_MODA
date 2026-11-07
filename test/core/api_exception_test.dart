@@ -7,33 +7,62 @@ DioException _error(int estado, Object? cuerpo) {
   final peticion = RequestOptions(path: '/commerce/orders');
   return DioException(
     requestOptions: peticion,
-    response: Response(requestOptions: peticion, statusCode: estado, data: cuerpo),
+    response: Response(
+      requestOptions: peticion,
+      statusCode: estado,
+      data: cuerpo,
+    ),
   );
 }
 
 void main() {
   group('Mensaje de error para la persona', () {
+    test('un fallo interno no se presenta como modo sin conexión', () {
+      final error = ApiException.from(
+        DioException(
+          requestOptions: RequestOptions(path: '/public/stores'),
+          error: StateError('Fallo del cliente'),
+        ),
+      );
+      expect(error.sinConexion, isFalse);
+      expect(error.message, contains('preparar la consulta'));
+    });
     test('usa el mensaje del envoltorio propio del backend', () {
-      final error = ApiException.from(_error(409, {
-        'success': false,
-        'error': {'code': 'conflict', 'message': 'Solo se pueden devolver pedidos ya entregados.'},
-      }));
+      final error = ApiException.from(
+        _error(409, {
+          'success': false,
+          'error': {
+            'code': 'conflict',
+            'message': 'Solo se pueden devolver pedidos ya entregados.',
+          },
+        }),
+      );
       expect(error.message, 'Solo se pueden devolver pedidos ya entregados.');
       expect(error.statusCode, 409);
     });
 
     test('entiende el detalle en texto de FastAPI', () {
-      final error = ApiException.from(_error(400, {'detail': 'El carrito esta vacio.'}));
+      final error = ApiException.from(
+        _error(400, {'detail': 'El carrito esta vacio.'}),
+      );
       expect(error.message, 'El carrito esta vacio.');
     });
 
     test('resume los errores de validación campo por campo', () {
-      final error = ApiException.from(_error(422, {
-        'detail': [
-          {'loc': ['body', 'reason'], 'msg': 'demasiado corto'},
-          {'loc': ['body', 'items'], 'msg': 'no puede estar vacío'},
-        ],
-      }));
+      final error = ApiException.from(
+        _error(422, {
+          'detail': [
+            {
+              'loc': ['body', 'reason'],
+              'msg': 'demasiado corto',
+            },
+            {
+              'loc': ['body', 'items'],
+              'msg': 'no puede estar vacío',
+            },
+          ],
+        }),
+      );
       expect(error.message, contains('body.reason: demasiado corto'));
       expect(error.message, contains('body.items: no puede estar vacío'));
     });
@@ -52,4 +81,3 @@ void main() {
     });
   });
 }
-

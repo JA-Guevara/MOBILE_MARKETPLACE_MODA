@@ -29,6 +29,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _ocupado = false;
   String? _error;
   String? _mensaje;
+  String? _empresa;
+
+  @override
+  void initState() {
+    super.initState();
+    _empresa = ref.read(tiendaPublicaSeleccionadaProvider)?.slug;
+  }
 
   @override
   void dispose() {
@@ -59,7 +66,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
     setState(() => _ocupado = true);
     try {
-      final mensaje = await ref.read(sessionProvider.notifier).registrarse(
+      final mensaje = await ref
+          .read(sessionProvider.notifier)
+          .registrarse(
             email: _email.text,
             password: _password.text,
             nombre: _nombre.text.trim(),
@@ -78,6 +87,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
+    final tiendas = ref.watch(tiendasPublicasProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Crear cuenta')),
       body: SafeArea(
@@ -88,8 +98,60 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             children: [
               Text('Creá tu cuenta', style: tema.textTheme.headlineSmall),
               const SizedBox(height: 4),
-              const Text('Completá tus datos para formar parte de FashionStore.'),
+              const Text(
+                'Completá tus datos para formar parte de FashionStore.',
+              ),
               const SizedBox(height: 24),
+              DropdownButtonFormField<String>(
+                initialValue: _empresa,
+                decoration: const InputDecoration(
+                  labelText: 'Empresa o tienda',
+                ),
+                isExpanded: true,
+                items: [
+                  if (_empresa != null &&
+                      !(tiendas.asData?.value ?? const []).any(
+                        (t) => t.slug == _empresa,
+                      ))
+                    DropdownMenuItem(
+                      value: _empresa,
+                      child: Text(
+                        ref.read(tiendaPublicaSeleccionadaProvider)?.nombre ??
+                            _empresa!,
+                      ),
+                    ),
+                  for (final tienda in tiendas.asData?.value ?? const [])
+                    DropdownMenuItem(
+                      value: tienda.slug,
+                      child: Text(tienda.nombre),
+                    ),
+                ],
+                onChanged: _ocupado
+                    ? null
+                    : (value) {
+                        setState(() => _empresa = value);
+                        final matches = (tiendas.asData?.value ?? const [])
+                            .where((t) => t.slug == value);
+                        if (matches.isNotEmpty) {
+                          ref
+                              .read(tiendaPublicaSeleccionadaProvider.notifier)
+                              .state = matches
+                              .first;
+                        }
+                      },
+                validator: (value) => value == null
+                    ? 'Elegí la tienda donde querés registrarte.'
+                    : null,
+              ),
+              if (tiendas.isLoading) const LinearProgressIndicator(),
+              if (tiendas.hasError)
+                TextButton(
+                  onPressed: () => ref.invalidate(tiendasPublicasProvider),
+                  child: const Text(
+                    'No se pudo cargar las tiendas. Reintentar',
+                  ),
+                ),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _nombre,
                 textCapitalization: TextCapitalization.words,
@@ -105,24 +167,30 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 textCapitalization: TextCapitalization.words,
                 autofillHints: const [AutofillHints.familyName],
                 decoration: const InputDecoration(labelText: 'Apellidos'),
-                validator: (valor) =>
-                    (valor ?? '').trim().length >= 2 ? null : 'Ingresá tus apellidos.',
+                validator: (valor) => (valor ?? '').trim().length >= 2
+                    ? null
+                    : 'Ingresá tus apellidos.',
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _telefono,
                 keyboardType: TextInputType.phone,
                 autofillHints: const [AutofillHints.telephoneNumber],
-                decoration: const InputDecoration(labelText: 'Teléfono (opcional)'),
+                decoration: const InputDecoration(
+                  labelText: 'Teléfono (opcional)',
+                ),
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _email,
                 keyboardType: TextInputType.emailAddress,
                 autofillHints: const [AutofillHints.email],
-                decoration: const InputDecoration(labelText: 'Correo electrónico'),
-                validator: (valor) =>
-                    (valor ?? '').contains('@') ? null : 'Ingresá un correo válido.',
+                decoration: const InputDecoration(
+                  labelText: 'Correo electrónico',
+                ),
+                validator: (valor) => (valor ?? '').contains('@')
+                    ? null
+                    : 'Ingresá un correo válido.',
               ),
               const SizedBox(height: 12),
               ContrasenaField(

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../shared/formato.dart';
+import '../../../core/network/api_exception.dart';
+import '../../operacion_offline/application/catalogo_offline_controller.dart';
 import '../../reservas_vestidor/application/reservas_controller.dart';
 import '../application/catalog_controller.dart';
 import '../application/session_controller.dart';
@@ -76,19 +78,41 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: tiendas.when(
-        loading: () => const Text('Cargando tiendas…'),
-        error: (_, _) => Column(
+        loading: () => const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 12),
+            Text('Cargando tiendas…'),
+          ],
+        ),
+        error: (error, _) => Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text('No pudimos cargar las tiendas.'),
-            TextButton(
+            const SizedBox(height: 8),
+            Text(
+              error is ApiException
+                  ? error.message
+                  : 'La aplicación no pudo leer el directorio. Reintentá o actualizá la aplicación.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
               onPressed: () => ref.invalidate(tiendasPublicasProvider),
-              child: const Text('Reintentar'),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'),
             ),
             TextButton(
-              onPressed: () => context.go('/sin-conexion'),
-              child: const Text('Abrir modo sin conexión'),
+              onPressed: () => context.go('/iniciar-sesion'),
+              child: const Text('Iniciar sesión'),
             ),
+            if (ref.watch(sessionProvider).usuario != null &&
+                ref.watch(catalogoOfflineProvider).descargadoEn != null)
+              TextButton(
+                onPressed: () => context.go('/sin-conexion/catalogo'),
+                child: const Text('Consultar catálogo guardado'),
+              ),
           ],
         ),
         data: (lista) {

@@ -4,10 +4,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/offline/base_local.dart';
 import '../../../core/network/api_exception.dart';
-import '../../../core/config/environment.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/network/auth_interceptor.dart';
+import '../../../core/network/session_link.dart';
 import '../../../core/storage/token_store.dart';
 import '../domain/usuario.dart';
 import '../infrastructure/auth_api.dart';
@@ -105,6 +105,7 @@ class SessionController extends StateNotifier<EstadoSesion> {
   Timer? _subscriptionTimer;
 
   String? get accessToken => _accessToken;
+  String? get tenantSlug => state.usuario?.empresa?.slug;
 
   @override
   void dispose() {
@@ -154,6 +155,7 @@ class SessionController extends StateNotifier<EstadoSesion> {
   Future<void> refrescarSuscripcion() async {
     if (state.usuario == null ||
         state.usuario?.empresa == null ||
+        state.usuario?.puede('my_subscription.read') != true ||
         state.sinConexion) {
       return;
     }
@@ -366,7 +368,11 @@ class SessionController extends StateNotifier<EstadoSesion> {
           : null,
     );
     await _guardarPerfil(sesion.usuario);
-    _iniciarTemporizadorSuscripcion();
+    if (sesion.usuario.puede('my_subscription.read')) {
+      _iniciarTemporizadorSuscripcion();
+    } else {
+      _detenerTemporizadorSuscripcion();
+    }
     unawaited(refrescarSuscripcion());
   }
 
@@ -412,11 +418,9 @@ final Provider<TokenStore> tokenStoreProvider = Provider<TokenStore>(
   (ref) => TokenStore(),
 );
 
-// El cliente y la sesión se referencian mutuamente, pero no hay ciclo: el
-// cliente solo *construye* el interceptor con funciones, y esas funciones leen
-// la sesión recién cuando sale una petición, con todo ya construido.
-// El tipo va escrito a mano porque los tres proveedores se referencian entre
-// sí y Dart no puede inferirlo solo.
+// El enlace no depende del controlador. Los interceptores consultan callbacks
+// enlazados al construir la sesión, sin leer sessionProvider desde el cliente.
+final _sessionLinkProvider = Provider<SessionLink>((ref) => SessionLink());
 final tiendaPublicaSeleccionadaProvider =
     StateProvider<({String slug, String nombre})?>((ref) => null);
 
@@ -444,6 +448,7 @@ final tiendasPublicasProvider =
 
 final Provider<ApiClient> apiClientProvider = Provider<ApiClient>((ref) {
   final cliente = ApiClient();
+  final session = ref.watch(_sessionLinkProvider);
   cliente.dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) {
@@ -452,11 +457,19 @@ final Provider<ApiClient> apiClientProvider = Provider<ApiClient>((ref) {
             path.startsWith('/catalog/') ||
             path.startsWith('/commerce/') ||
             path.startsWith('/vestidor/') ||
-            path.startsWith('/tryon-ai/');
-        options.headers['X-Tenant-Slug'] =
-            (storefront ? ref.read(tiendaCatalogoProvider) : null) ??
-            ref.read(sessionProvider).usuario?.empresa?.slug ??
-            Environment.tenantSlug;
+            path.startsWith('/tryon-ai/') ||
+            path == '/auth/register';
+        final selected = storefront
+            ? ref.read(tiendaPublicaSeleccionadaProvider)?.slug
+            : null;
+        final slug = session.tenantSlug ?? selected;
+        if (slug != null && slug.isNotEmpty) {
+          options.headers['X-Tenant-Slug'] = slug;
+        } else {
+          // Un visitante sin tienda no consulta el catálogo de otra empresa
+          // por un valor implícito de la compilación.
+          options.headers.remove('X-Tenant-Slug');
+        }
         handler.next(options);
       },
     ),
@@ -467,9 +480,9 @@ final Provider<ApiClient> apiClientProvider = Provider<ApiClient>((ref) {
   cliente.dio.interceptors.add(
     AuthInterceptor(
       dio: cliente.dio,
-      accessToken: () => ref.read(sessionProvider.notifier).accessToken,
-      refresh: () => ref.read(sessionProvider.notifier).renovar(),
-      onSessionExpired: () => ref.read(sessionProvider.notifier).limpiar(),
+      accessToken: () => session.accessToken,
+      refresh: session.refresh,
+      onSessionExpired: session.expired,
     ),
   );
   return cliente;
@@ -481,10 +494,20 @@ final Provider<AuthApi> authApiProvider = Provider<AuthApi>(
 
 final StateNotifierProvider<SessionController, EstadoSesion> sessionProvider =
     StateNotifierProvider<SessionController, EstadoSesion>((ref) {
-      return SessionController(
+      final session = SessionController(
         ref.watch(authApiProvider),
         ref.watch(tokenStoreProvider),
         baseLocal: ref.watch(baseLocalProvider),
         apiClient: ref.watch(apiClientProvider),
       );
+      final link = ref.watch(_sessionLinkProvider);
+      link.bind(
+        owner: session,
+        token: () => session.accessToken,
+        tenant: () => session.tenantSlug,
+        refresh: session.renovar,
+        expired: session.limpiar,
+      );
+      ref.onDispose(() => link.unbind(session));
+      return session;
     });

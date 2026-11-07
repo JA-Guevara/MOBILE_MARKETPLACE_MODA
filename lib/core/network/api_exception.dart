@@ -7,14 +7,20 @@ import 'package:dio/dio.dart';
 /// validación falla antes de llegar al caso de uso. Los tres casos terminan en
 /// el mismo mensaje, igual que en `shared/errors.ts` del frontend web.
 class ApiException implements Exception {
-  const ApiException(this.message, {this.statusCode, this.retryAfter});
+  const ApiException(
+    this.message, {
+    this.statusCode,
+    this.retryAfter,
+    this.conexionInterrumpida,
+  });
 
   final String message;
   final int? statusCode;
   final String? retryAfter;
+  final bool? conexionInterrumpida;
 
   /// El servidor no respondió: interrupción de conexión o servicio caído.
-  bool get sinConexion => statusCode == null;
+  bool get sinConexion => conexionInterrumpida ?? statusCode == null;
 
   @override
   String toString() => message;
@@ -22,7 +28,14 @@ class ApiException implements Exception {
   factory ApiException.from(DioException error) {
     final respuesta = error.response;
     if (respuesta == null) {
-      return ApiException(_sinRespuesta(error.type));
+      final falloInterno = error.error is Error;
+      return ApiException(
+        falloInterno
+            ? 'La aplicación no pudo preparar la consulta. Reintentá; si continúa, actualizá la aplicación.'
+            : _sinRespuesta(error.type),
+        conexionInterrumpida:
+            !falloInterno && error.type != DioExceptionType.cancel,
+      );
     }
     final cuerpo = respuesta.data;
     if (respuesta.statusCode == 429 || respuesta.statusCode == 503) {
