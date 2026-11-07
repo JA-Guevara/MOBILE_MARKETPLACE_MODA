@@ -6,9 +6,11 @@ class SessionLink {
   String? Function()? _tenant;
   Future<bool> Function()? _refresh;
   void Function()? _expired;
+  String Function()? _identity;
 
   String? get accessToken => _token?.call();
   String? get tenantSlug => _tenant?.call();
+  String? get identity => _identity?.call();
   Future<bool> refresh() async => await _refresh?.call() ?? false;
   void expired() => _expired?.call();
 
@@ -18,12 +20,14 @@ class SessionLink {
     required String? Function() tenant,
     required Future<bool> Function() refresh,
     required void Function() expired,
+    required String Function() identity,
   }) {
     _owner = owner;
     _token = token;
     _tenant = tenant;
     _refresh = refresh;
     _expired = expired;
+    _identity = identity;
   }
 
   void unbind(Object owner) {
@@ -33,5 +37,6 @@ class SessionLink {
     _tenant = null;
     _refresh = null;
     _expired = null;
+    _identity = null;
   }
 }

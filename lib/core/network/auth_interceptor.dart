@@ -17,21 +17,30 @@ class AuthInterceptor extends Interceptor {
     required this.refresh,
     required this.onSessionExpired,
     required this.dio,
+    this.sessionIdentity,
   });
 
   final String? Function() accessToken;
   final Future<bool> Function() refresh;
   final void Function() onSessionExpired;
   final Dio dio;
+  final String? Function()? sessionIdentity;
 
   /// Renovación en curso: varias peticiones que fallan a la vez comparten una
   /// sola llamada a `/auth/refresh` en lugar de pedir un token cada una.
   Future<bool>? _renovando;
+  String? _identidadRenovando;
 
   static const _reintentado = 'x-fashionstore-retry';
+  static const _identidad = 'fashionstore-session-identity';
+
+  bool _mismaSesion(RequestOptions request) =>
+      sessionIdentity == null ||
+      request.extra[_identidad] == sessionIdentity!();
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    options.extra.putIfAbsent(_identidad, () => sessionIdentity?.call());
     final token = accessToken();
     if (token != null && token.isNotEmpty) {
       options.headers['Authorization'] = 'Bearer $token';
@@ -47,22 +56,42 @@ class AuthInterceptor extends Interceptor {
   /// para invalidar el que acaba de emitirse.
   Future<bool> _asegurarToken(String? usado) async {
     final actual = accessToken();
-    if (actual != null && actual.isNotEmpty && 'Bearer $actual' != usado) return true;
-    return _renovando ??= refresh().whenComplete(() => _renovando = null);
+    if (actual != null && actual.isNotEmpty && 'Bearer $actual' != usado) {
+      return true;
+    }
+    final identity = sessionIdentity?.call();
+    if (_renovando != null && identity == _identidadRenovando) {
+      return _renovando!;
+    }
+    _identidadRenovando = identity;
+    late final Future<bool> future;
+    future = refresh().whenComplete(() {
+      if (identical(_renovando, future)) {
+        _renovando = null;
+        _identidadRenovando = null;
+      }
+    });
+    _renovando = future;
+    return future;
   }
 
   @override
-  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
     final peticion = err.requestOptions;
-    final esRenovable = err.response?.statusCode == 401 &&
+    final esRenovable =
+        err.response?.statusCode == 401 &&
         !peticion.extra.containsKey(_reintentado) &&
         !peticion.path.contains('/auth/refresh') &&
         !peticion.path.contains('/auth/login');
-    if (!esRenovable) {
+    if (!esRenovable || !_mismaSesion(peticion)) {
       return handler.next(err);
     }
 
     final renovado = await _asegurarToken(peticion.headers['Authorization']);
+    if (!_mismaSesion(peticion)) return handler.next(err);
     if (!renovado) {
       onSessionExpired();
       return handler.next(err);
@@ -76,9 +105,10 @@ class AuthInterceptor extends Interceptor {
       }
       handler.resolve(await dio.fetch(peticion));
     } on DioException catch (error) {
-      if (error.response?.statusCode == 401) onSessionExpired();
+      if (error.response?.statusCode == 401 && _mismaSesion(peticion)) {
+        onSessionExpired();
+      }
       handler.next(error);
     }
   }
 }
-

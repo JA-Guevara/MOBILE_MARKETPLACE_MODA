@@ -16,6 +16,7 @@ import '../support/backend_falso.dart';
 class _AccountsBackend extends BackendFalso {
   bool pauseFavorites = false;
   bool pauseCheckout = false;
+  bool pauseRefresh = false;
   String activeTenant = 'tienda-a';
   final started = Completer<void>();
   final release = Completer<void>();
@@ -27,6 +28,10 @@ class _AccountsBackend extends BackendFalso {
     Future<void>? cancel,
   ) async {
     if (options.path == '/auth/login' || options.path == '/auth/refresh') {
+      if (pauseRefresh && options.path == '/auth/refresh') {
+        if (!started.isCompleted) started.complete();
+        await release.future;
+      }
       final slug = (options.data as Map)['tenant_slug'] ?? activeTenant;
       activeTenant = slug as String;
       return ResponseBody.fromString(
@@ -77,6 +82,38 @@ class _AccountsBackend extends BackendFalso {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test(
+    'un refresh tardío no restaura una sesión cerrada ni sus credenciales',
+    () async {
+      final tokens = TokenStoreFalso();
+      final container = ProviderContainer(
+        overrides: [tokenStoreProvider.overrideWithValue(tokens)],
+      );
+      final client = container.read(apiClientProvider);
+      final backend = _AccountsBackend()..pauseRefresh = true;
+      client.dio.httpClientAdapter = backend;
+      try {
+        final session = container.read(sessionProvider.notifier);
+        await session.iniciarSesion(
+          'fixture@example.test',
+          'fixture',
+          empresaSlug: 'tienda-a',
+        );
+        final pending = session.renovar();
+        await backend.started.future;
+        await session.limpiar();
+        backend.release.complete();
+        expect(await pending, isFalse);
+        expect(container.read(sessionProvider).usuario, isNull);
+        expect(session.accessToken, isNull);
+        expect(await tokens.leerRefresh(), isNull);
+      } finally {
+        client.dio.close(force: true);
+        container.dispose();
+      }
+    },
+  );
 
   test(
     'la misma cuenta cambia de empresa sin conservar carrito, favoritos, pedidos o selección',

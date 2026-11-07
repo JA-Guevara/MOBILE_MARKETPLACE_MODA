@@ -103,12 +103,24 @@ class SessionController extends StateNotifier<EstadoSesion> {
   String? _accessToken;
   String? _refreshToken;
   Timer? _subscriptionTimer;
+  int _generacion = 0;
+  Future<void> _persistencia = Future.value();
+
+  bool _vigente(int generacion) => mounted && generacion == _generacion;
+
+  Future<void> _persistir(Future<void> Function() accion) {
+    final actual = _persistencia.then((_) => accion());
+    _persistencia = actual.catchError((Object _) {});
+    return actual;
+  }
 
   String? get accessToken => _accessToken;
   String? get tenantSlug => state.usuario?.empresa?.slug;
+  String get authIdentity => '${identityHashCode(this)}:$_generacion';
 
   @override
   void dispose() {
+    _generacion++;
     _detenerTemporizadorSuscripcion();
     super.dispose();
   }
@@ -161,10 +173,12 @@ class SessionController extends StateNotifier<EstadoSesion> {
     }
     final client = _client;
     if (client == null) return;
+    final generacion = _generacion;
     try {
       final res = await client.get<Map<String, dynamic>>(
         '/tenant/subscription',
       );
+      if (!_vigente(generacion)) return;
       final current = res['current'] is Map<String, dynamic>
           ? res['current'] as Map<String, dynamic>
           : res;
@@ -183,6 +197,7 @@ class SessionController extends StateNotifier<EstadoSesion> {
             : null,
       );
     } on ApiException catch (e) {
+      if (!_vigente(generacion)) return;
       if (e.statusCode == 403 &&
           (e.message.contains('subscription_read_only') ||
               e.message.contains('solo lectura'))) {
@@ -197,26 +212,27 @@ class SessionController extends StateNotifier<EstadoSesion> {
 
   /// Reabre la sesión guardada al arrancar la app.
   Future<void> restaurar() async {
+    final generacion = ++_generacion;
     final guardado = await _store.leerRefresh();
+    if (!_vigente(generacion)) return;
     if (guardado == null) {
       state = const EstadoSesion(restaurando: false);
       return;
     }
     try {
-      await _aplicar(await _api.renovar(guardado));
+      await _aplicar(await _api.renovar(guardado), generacion);
     } on ApiException catch (error) {
-      if (error.sinConexion && await _restaurarPerfil()) return;
+      if (!_vigente(generacion)) return;
+      if (error.sinConexion && await _restaurarPerfil(generacion)) return;
+      if (!_vigente(generacion)) return;
       await limpiar();
     } catch (_) {
+      if (!_vigente(generacion)) return;
       // Un refresh vencido o revocado no es un error que mostrar: simplemente
       // no hay sesión y la app arranca como visitante.
       await limpiar();
     } finally {
-      state = state.copyWith(restaurando: false);
-      if (state.usuario != null && !state.sinConexion) {
-        _iniciarTemporizadorSuscripcion();
-        unawaited(refrescarSuscripcion());
-      }
+      if (_vigente(generacion)) state = state.copyWith(restaurando: false);
     }
   }
 
@@ -226,6 +242,7 @@ class SessionController extends StateNotifier<EstadoSesion> {
     String? empresaSlug,
     bool plataforma = false,
   }) async {
+    final generacion = ++_generacion;
     final sesion = empresaSlug == null && !plataforma
         ? await _api.iniciarSesion(email, password)
         : await _api.iniciarSesionEnEmpresa(
@@ -234,7 +251,7 @@ class SessionController extends StateNotifier<EstadoSesion> {
             empresaSlug: empresaSlug,
             plataforma: plataforma,
           );
-    await _aplicar(sesion);
+    await _aplicar(sesion, generacion);
   }
 
   /// Crea la cuenta y devuelve el mensaje del servidor. No abre sesión: el
@@ -282,11 +299,13 @@ class SessionController extends StateNotifier<EstadoSesion> {
   }
 
   Future<String> verificarCorreo(String token) async {
+    final generacion = _generacion;
     final mensaje = await _api.verificarCorreo(token);
     // Si había sesión abierta, reflejar de inmediato que ya está verificado.
-    if (state.usuario != null) {
+    if (_vigente(generacion) && state.usuario != null) {
       try {
         final usuario = await _api.yo();
+        if (!_vigente(generacion)) return mensaje;
         state = EstadoSesion(usuario: usuario, restaurando: false);
       } catch (_) {
         // Sin conexión, la próxima vez que se abra la app se refresca solo.
@@ -301,16 +320,18 @@ class SessionController extends StateNotifier<EstadoSesion> {
   /// Vuelve a pedir `/auth/me` para reflejar cambios hechos por otra pantalla
   /// (perfil verificado, datos editados).
   Future<void> recargarUsuario() async {
+    final generacion = _generacion;
     try {
       final usuario = await _api.yo();
+      if (!_vigente(generacion)) return;
       final isRo = usuario.suscripcion?.soloLectura == true;
       state = state.copyWith(
         usuario: usuario,
         restaurando: false,
         soloLecturaPorSuscripcion: isRo || state.soloLecturaPorSuscripcion,
       );
-      await _guardarPerfil(usuario);
-      unawaited(refrescarSuscripcion());
+      await _guardarPerfil(usuario, generacion);
+      if (_vigente(generacion)) unawaited(refrescarSuscripcion());
     } catch (_) {
       // Sin conexión se queda el caché de la memoria; no hay nada que avisar.
     }
@@ -318,11 +339,12 @@ class SessionController extends StateNotifier<EstadoSesion> {
 
   /// Renueva el token. Devuelve si se pudo; lo usa [AuthInterceptor] ante un 401.
   Future<bool> renovar() async {
+    final generacion = _generacion;
     final token = _refreshToken ?? await _store.leerRefresh();
-    if (token == null) return false;
+    if (token == null || !_vigente(generacion)) return false;
     try {
-      await _aplicar(await _api.renovar(token));
-      return true;
+      await _aplicar(await _api.renovar(token), generacion);
+      return _vigente(generacion);
     } catch (_) {
       return false;
     }
@@ -330,6 +352,7 @@ class SessionController extends StateNotifier<EstadoSesion> {
 
   Future<void> cerrarSesion() async {
     final token = _refreshToken;
+    await limpiar();
     if (token != null) {
       try {
         await _api.cerrarSesion(token);
@@ -337,26 +360,34 @@ class SessionController extends StateNotifier<EstadoSesion> {
         // Si el servidor no responde, la sesión igual se cierra en el teléfono.
       }
     }
-    await limpiar();
   }
 
   Future<void> limpiar() async {
+    _generacion++;
     _detenerTemporizadorSuscripcion();
     _accessToken = null;
     _refreshToken = null;
-    await _store.limpiar();
-    try {
-      await _base?.borrarMeta('usuario_offline');
-    } catch (_) {
-      // La sesión remota se cierra aunque el almacenamiento local no esté disponible.
-    }
-    state = const EstadoSesion(restaurando: false);
+    if (mounted) state = const EstadoSesion(restaurando: false);
+    await _persistir(() async {
+      await _store.limpiar();
+      try {
+        await _base?.borrarMeta('usuario_offline');
+      } catch (_) {
+        // La sesión remota se cierra aunque el almacenamiento local no esté disponible.
+      }
+    });
   }
 
-  Future<void> _aplicar(Sesion sesion) async {
+  Future<void> _aplicar(Sesion sesion, int generacion) async {
+    if (!_vigente(generacion)) return;
     _accessToken = sesion.accessToken;
     _refreshToken = sesion.refreshToken;
-    await _store.guardarRefresh(sesion.refreshToken);
+    await _persistir(() async {
+      if (_vigente(generacion)) {
+        await _store.guardarRefresh(sesion.refreshToken);
+      }
+    });
+    if (!_vigente(generacion)) return;
     final isRo = sesion.usuario.suscripcion?.soloLectura == true;
     state = EstadoSesion(
       usuario: sesion.usuario,
@@ -367,7 +398,8 @@ class SessionController extends StateNotifier<EstadoSesion> {
           ? 'Tu suscripción está vencida y en modo solo lectura.'
           : null,
     );
-    await _guardarPerfil(sesion.usuario);
+    await _guardarPerfil(sesion.usuario, generacion);
+    if (!_vigente(generacion)) return;
     if (sesion.usuario.puede('my_subscription.read')) {
       _iniciarTemporizadorSuscripcion();
     } else {
@@ -376,19 +408,26 @@ class SessionController extends StateNotifier<EstadoSesion> {
     unawaited(refrescarSuscripcion());
   }
 
-  Future<void> _guardarPerfil(Usuario usuario) async {
+  Future<void> _guardarPerfil(Usuario usuario, int generacion) async {
     try {
-      await _base?.guardarMeta('usuario_offline', jsonEncode(usuario.aJson()));
+      await _persistir(() async {
+        if (_vigente(generacion)) {
+          await _base?.guardarMeta(
+            'usuario_offline',
+            jsonEncode(usuario.aJson()),
+          );
+        }
+      });
     } catch (_) {
       // El caché es opcional para iniciar sesión en línea. Preparar el modo
       // sin conexión muestra el error si la base local no puede abrirse.
     }
   }
 
-  Future<bool> _restaurarPerfil() async {
+  Future<bool> _restaurarPerfil(int generacion) async {
     try {
       final json = await _base?.leerMeta('usuario_offline');
-      if (json == null) return false;
+      if (json == null || !_vigente(generacion)) return false;
       final usuario = Usuario.desdeJson(
         jsonDecode(json) as Map<String, dynamic>,
       );
@@ -491,6 +530,7 @@ final Provider<ApiClient> apiClientProvider = Provider<ApiClient>((ref) {
       accessToken: () => session.accessToken,
       refresh: session.refresh,
       onSessionExpired: session.expired,
+      sessionIdentity: () => session.identity,
     ),
   );
   return cliente;
@@ -515,6 +555,7 @@ final StateNotifierProvider<SessionController, EstadoSesion> sessionProvider =
         tenant: () => session.tenantSlug,
         refresh: session.renovar,
         expired: session.limpiar,
+        identity: () => session.authIdentity,
       );
       ref.onDispose(() => link.unbind(session));
       return session;

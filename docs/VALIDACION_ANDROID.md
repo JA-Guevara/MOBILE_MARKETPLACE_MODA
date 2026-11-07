@@ -6,9 +6,10 @@ Se reprodujo y corrigió el fallo de inicio «No pudimos cargar las tiendas»: l
 
 - **0.1.1 (código 2):** APK compilada desde el commit `4333c00`, instalada como actualización en VKP NX9 / Android 17. El usuario confirmó que la lista de tiendas ya aparece. No se desinstaló ni borró el almacenamiento.
 - **0.1.2 (código 3):** añade invalidación del estado privado al cambiar de usuario o empresa. Carrito, favoritos, pedidos, direcciones, reservas y reportes no conservan el contexto anterior. Las respuestas tardías se descartan; una renovación de token de la misma cuenta conserva la selección actual.
-- Análisis estático sin problemas y **326 pruebas aprobadas**; una prueba externa optativa omitida en la suite normal. Esta última se ejecutó por separado expresamente: cuatro controles aprobados, incluyendo lectura del directorio de producción (cuatro tiendas), una prenda, categorías y recomendaciones. Solo se leen datos públicos.
+- Análisis estático sin problemas y **329 pruebas aprobadas**; una prueba externa optativa omitida en la suite normal. Esta última se ejecutó por separado expresamente: cuatro controles aprobados, incluyendo lectura del directorio de producción (cuatro tiendas), una prenda, categorías y recomendaciones. Solo se leen datos públicos.
 - Recuperación de directorio probada: error → reintento → selección → catálogo; ingreso por empresa y tienda del registro. El modo offline ya no se ofrece como salida genérica a un error interno y los clientes no consultan la administración de suscripciones.
 - Historial offline integrado por el otro chat: SQLite v4 añade alcance de cuenta al historial. La suite incluye migración y aislamiento; no equivale a un ensayo de modo avión completo en el teléfono.
+- Renovación y `401` tardíos: una sesión cerrada no se restaura ni vuelve a guardar sus credenciales por una respuesta en curso. Una solicitud de la cuenta anterior no se repite con el token de la siguiente cuenta. Los guardados y borrados locales se ordenan para conservar el resultado del último cambio de sesión.
 
 Pruebas específicas: `test/core/public_stores_integration_test.dart`, `test/core/account_scope_test.dart`, `test/features/usuarios_catalogo/inicio_tiendas_test.dart`. La consulta externa se activa con `--dart-define=RUN_PUBLIC_API_SMOKE=true`; nunca usa cuentas o contraseñas reales.
 

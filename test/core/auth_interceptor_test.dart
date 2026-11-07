@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -22,7 +23,11 @@ class _ServidorFalso implements HttpClientAdapter {
     recibidas.add(options);
     final estado = responder(recibidas.length, options);
     return ResponseBody.fromString(
-      jsonEncode({'success': estado < 400, 'message': '', 'data': {'ok': estado < 400}}),
+      jsonEncode({
+        'success': estado < 400,
+        'message': '',
+        'data': {'ok': estado < 400},
+      }),
       estado,
       headers: {
         Headers.contentTypeHeader: [Headers.jsonContentType],
@@ -41,23 +46,118 @@ void main() {
   int expiraciones = 0;
   String token = 'viejo';
 
-  void montar({required bool renovacionFunciona, required int Function(int, RequestOptions) responder}) {
+  test(
+    'un 401 de la cuenta anterior no renueva ni repite usando la cuenta nueva',
+    () async {
+      var identity = 'empresa-a';
+      var refreshes = 0;
+      var expired = 0;
+      final server = _ServidorFalso((_, __) {
+        identity = 'empresa-b';
+        return 401;
+      });
+      final client = Dio(BaseOptions(baseUrl: 'http://test/api/v1'))
+        ..httpClientAdapter = server;
+      client.interceptors.add(
+        AuthInterceptor(
+          dio: client,
+          accessToken: () => identity,
+          sessionIdentity: () => identity,
+          refresh: () async {
+            refreshes++;
+            return true;
+          },
+          onSessionExpired: () {
+            expired++;
+          },
+        ),
+      );
+      try {
+        await expectLater(
+          client.get<dynamic>('/commerce/cart'),
+          throwsA(isA<DioException>()),
+        );
+        expect(refreshes, 0);
+        expect(expired, 0);
+        expect(server.recibidas, hasLength(1));
+        expect(
+          server.recibidas.single.headers['Authorization'],
+          'Bearer empresa-a',
+        );
+      } finally {
+        client.close(force: true);
+      }
+    },
+  );
+
+  test(
+    'una renovación pendiente al cerrar sesión no repite el pedido ni cierra la nueva cuenta',
+    () async {
+      var identity = 'empresa-a';
+      var expired = 0;
+      final started = Completer<void>();
+      final release = Completer<bool>();
+      final server = _ServidorFalso((_, __) => 401);
+      final client = Dio(BaseOptions(baseUrl: 'http://test/api/v1'))
+        ..httpClientAdapter = server;
+      client.interceptors.add(
+        AuthInterceptor(
+          dio: client,
+          accessToken: () => identity,
+          sessionIdentity: () => identity,
+          refresh: () {
+            started.complete();
+            return release.future;
+          },
+          onSessionExpired: () {
+            expired++;
+          },
+        ),
+      );
+      try {
+        final pending = expectLater(
+          client.get<dynamic>('/commerce/orders'),
+          throwsA(isA<DioException>()),
+        );
+        await started.future;
+        identity = 'empresa-b';
+        release.complete(false);
+        await pending;
+        expect(expired, 0);
+        expect(server.recibidas, hasLength(1));
+      } finally {
+        client.close(force: true);
+      }
+    },
+  );
+
+  void montar({
+    required bool renovacionFunciona,
+    required int Function(int, RequestOptions) responder,
+  }) {
     renovaciones = 0;
     expiraciones = 0;
     token = 'viejo';
     servidor = _ServidorFalso(responder);
-    dio = Dio(BaseOptions(baseUrl: 'http://test/api/v1', validateStatus: (s) => s != null && s < 400));
+    dio = Dio(
+      BaseOptions(
+        baseUrl: 'http://test/api/v1',
+        validateStatus: (s) => s != null && s < 400,
+      ),
+    );
     dio.httpClientAdapter = servidor;
-    dio.interceptors.add(AuthInterceptor(
-      dio: dio,
-      accessToken: () => token,
-      refresh: () async {
-        renovaciones++;
-        if (renovacionFunciona) token = 'nuevo';
-        return renovacionFunciona;
-      },
-      onSessionExpired: () => expiraciones++,
-    ));
+    dio.interceptors.add(
+      AuthInterceptor(
+        dio: dio,
+        accessToken: () => token,
+        refresh: () async {
+          renovaciones++;
+          if (renovacionFunciona) token = 'nuevo';
+          return renovacionFunciona;
+        },
+        onSessionExpired: () => expiraciones++,
+      ),
+    );
   }
 
   test('manda el bearer en cada petición', () async {
@@ -67,7 +167,10 @@ void main() {
   });
 
   test('ante un 401 renueva y reintenta con el token nuevo', () async {
-    montar(renovacionFunciona: true, responder: (intento, _) => intento == 1 ? 401 : 200);
+    montar(
+      renovacionFunciona: true,
+      responder: (intento, _) => intento == 1 ? 401 : 200,
+    );
     final respuesta = await dio.get<dynamic>('/commerce/orders');
 
     expect(renovaciones, 1);
@@ -77,18 +180,31 @@ void main() {
     expect(expiraciones, 0);
   });
 
-  test('si la renovación falla, la sesión se da por terminada sin reintentar', () async {
-    montar(renovacionFunciona: false, responder: (_, __) => 401);
-    await expectLater(dio.get<dynamic>('/commerce/orders'), throwsA(isA<DioException>()));
+  test(
+    'si la renovación falla, la sesión se da por terminada sin reintentar',
+    () async {
+      montar(renovacionFunciona: false, responder: (_, __) => 401);
+      await expectLater(
+        dio.get<dynamic>('/commerce/orders'),
+        throwsA(isA<DioException>()),
+      );
 
-    expect(renovaciones, 1);
-    expect(expiraciones, 1);
-    expect(servidor.recibidas.length, 1, reason: 'no debe reintentar sin token nuevo');
-  });
+      expect(renovaciones, 1);
+      expect(expiraciones, 1);
+      expect(
+        servidor.recibidas.length,
+        1,
+        reason: 'no debe reintentar sin token nuevo',
+      );
+    },
+  );
 
   test('no entra en bucle si el reintento vuelve a dar 401', () async {
     montar(renovacionFunciona: true, responder: (_, __) => 401);
-    await expectLater(dio.get<dynamic>('/commerce/orders'), throwsA(isA<DioException>()));
+    await expectLater(
+      dio.get<dynamic>('/commerce/orders'),
+      throwsA(isA<DioException>()),
+    );
 
     // Una sola renovación y un solo reintento: dos peticiones en total.
     expect(renovaciones, 1);
@@ -99,26 +215,40 @@ void main() {
   test('un 401 del propio login no dispara renovación', () async {
     montar(renovacionFunciona: true, responder: (_, __) => 401);
     await expectLater(
-      dio.post<dynamic>('/auth/login', data: {'email': 'x@y.z', 'password': 'x'}),
+      dio.post<dynamic>(
+        '/auth/login',
+        data: {'email': 'x@y.z', 'password': 'x'},
+      ),
       throwsA(isA<DioException>()),
     );
 
-    expect(renovaciones, 0, reason: 'credenciales incorrectas no son una sesión vencida');
+    expect(
+      renovaciones,
+      0,
+      reason: 'credenciales incorrectas no son una sesión vencida',
+    );
     expect(servidor.recibidas.length, 1);
   });
 
-  test('varias peticiones que fallan a la vez comparten una sola renovación', () async {
-    montar(
-      renovacionFunciona: true,
-      responder: (intento, peticion) => peticion.headers['Authorization'] == 'Bearer nuevo' ? 200 : 401,
-    );
-    await Future.wait([
-      dio.get<dynamic>('/commerce/cart'),
-      dio.get<dynamic>('/commerce/orders'),
-      dio.get<dynamic>('/reservations'),
-    ]);
+  test(
+    'varias peticiones que fallan a la vez comparten una sola renovación',
+    () async {
+      montar(
+        renovacionFunciona: true,
+        responder: (intento, peticion) =>
+            peticion.headers['Authorization'] == 'Bearer nuevo' ? 200 : 401,
+      );
+      await Future.wait([
+        dio.get<dynamic>('/commerce/cart'),
+        dio.get<dynamic>('/commerce/orders'),
+        dio.get<dynamic>('/reservations'),
+      ]);
 
-    expect(renovaciones, 1, reason: 'no debe pedir un token por cada petición caída');
-  });
+      expect(
+        renovaciones,
+        1,
+        reason: 'no debe pedir un token por cada petición caída',
+      );
+    },
+  );
 }
-
