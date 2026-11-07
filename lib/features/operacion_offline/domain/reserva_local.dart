@@ -119,7 +119,9 @@ class OperacionPendiente {
         sucursalId: f['sucursal_id'] as String,
         usuarioId: f['usuario_id'] as String,
         dispositivoId: f['dispositivo_id'] as String,
-        payload: jsonDecode(f['payload'] as String) as Map<String, dynamic>,
+        payload: f['payload'] == null
+            ? {}
+            : jsonDecode(f['payload'] as String) as Map<String, dynamic>,
         creadaEn: DateTime.parse(f['creada_en'] as String),
         actualizadaEn: DateTime.parse(f['actualizada_en'] as String),
         estado: EstadoOperacion.desde(f['estado'] as String),

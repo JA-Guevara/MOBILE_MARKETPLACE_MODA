@@ -68,10 +68,20 @@ class SyncApi {
     return await _api.post<Map<String, dynamic>>(
       '/sync/conflicts/$conflictoId/resolve',
       body: {
-        'resolution': resolucion,
-        if (notas != null) 'resolution_notes': notas,
-        if (ajustesLinea != null) 'line_adjustments': ajustesLinea,
+        'action': resolucion,
+        'note': notas ?? 'Reevaluar operación pendiente',
+        if (ajustesLinea != null) 'quantities': ajustesLinea,
       },
     );
+  }
+
+  Future<List<SyncResult>> obtenerEstado(List<String> ids) async {
+    final response = await _api.post<List<dynamic>>(
+      '/sync/status',
+      body: {'client_request_ids': ids},
+    );
+    return response
+        .map((item) => SyncResult.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 }

@@ -23,6 +23,8 @@ import '../features/reservas_vestidor/presentation/mis_reservas_screen.dart';
 import '../features/reservas_vestidor/presentation/nueva_reserva_screen.dart';
 import 'home_shell.dart';
 import '../features/operacion_offline/presentation/catalogo_adaptable.dart';
+import '../features/operacion_offline/presentation/venta_offline_screen.dart';
+import '../features/operacion_offline/presentation/operaciones_offline_screen.dart';
 import '../features/operacion_offline/presentation/preparar_offline_screen.dart';
 import '../features/operacion_offline/presentation/catalogo_offline_screen.dart';
 import '../features/operacion_offline/presentation/reserva_offline_screen.dart';
@@ -100,6 +102,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/sin-conexion/catalogo',
         parentNavigatorKey: _raiz,
         builder: (context, estado) => const CatalogoOfflineScreen(),
+      ),
+      GoRoute(
+        path: '/sin-conexion/venta',
+        parentNavigatorKey: _raiz,
+        builder: (context, estado) => const VentaOfflineScreen(),
+      ),
+      GoRoute(
+        path: '/sin-conexion/operaciones',
+        parentNavigatorKey: _raiz,
+        builder: (context, estado) => const OperacionesOfflineScreen(),
       ),
       GoRoute(
         path: '/sin-conexion/reservar',

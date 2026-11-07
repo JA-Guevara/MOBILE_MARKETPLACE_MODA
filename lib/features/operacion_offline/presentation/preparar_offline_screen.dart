@@ -21,7 +21,9 @@ class PrepararOfflineScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final estado = ref.watch(catalogoOfflineProvider);
     final usuario = ref.watch(sessionProvider).usuario;
-    final sync = usuario?.puede('sync.write') == true ? ref.watch(sincronizacionControllerProvider) : null;
+    final sync = usuario?.puede('sync.write') == true
+        ? ref.watch(sincronizacionControllerProvider)
+        : null;
     final online = ref.watch(conectividadProvider).asData?.value == true;
     final control = ref.read(catalogoOfflineProvider.notifier);
     return Scaffold(
@@ -39,16 +41,31 @@ class PrepararOfflineScreen extends ConsumerWidget {
             ),
           const SizedBox(height: 12),
           if (sync != null)
-            PanelOffline(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Text('${sync.pendientes} operaciones pendientes'),
-              if (sync.ultimoError != null) Text(sync.ultimoError!),
-              FilledButton.icon(
-                onPressed: !online || sync.sincronizando || sync.reintentarEn != null
-                    ? null : () => ref.read(sincronizacionControllerProvider.notifier).sincronizarAhora(),
-                icon: const Icon(Icons.sync),
-                label: Text(sync.sincronizando ? 'Sincronizando…' : 'Sincronizar pendientes'),
+            PanelOffline(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('${sync.pendientes} operaciones pendientes'),
+                  if (sync.ultimoError != null) Text(sync.ultimoError!),
+                  FilledButton.icon(
+                    onPressed:
+                        !online ||
+                            sync.sincronizando ||
+                            sync.reintentarEn != null
+                        ? null
+                        : () => ref
+                              .read(sincronizacionControllerProvider.notifier)
+                              .sincronizarAhora(),
+                    icon: const Icon(Icons.sync),
+                    label: Text(
+                      sync.sincronizando
+                          ? 'Sincronizando…'
+                          : 'Sincronizar pendientes',
+                    ),
+                  ),
+                ],
               ),
-            ])),
+            ),
           if (usuario == null)
             AvisoOffline(
               'Iniciá sesión con conexión para preparar el catálogo de tu empresa.',
@@ -182,6 +199,15 @@ class PrepararOfflineScreen extends ConsumerWidget {
           TextButton(
             onPressed: () => context.push('/sin-conexion/reservas'),
             child: const Text('Reservas en el teléfono'),
+          ),
+          if (usuario?.puede('commerce.write') == true)
+            FilledButton(
+              onPressed: () => context.push('/sin-conexion/venta'),
+              child: const Text('Venta de contado local'),
+            ),
+          TextButton(
+            onPressed: () => context.push('/sin-conexion/operaciones'),
+            child: const Text('Operaciones y resultados de sincronización'),
           ),
         ],
       ),

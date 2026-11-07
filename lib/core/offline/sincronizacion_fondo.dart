@@ -198,16 +198,20 @@ class SincronizacionFondo {
           // Un resultado ajeno al lote nunca modifica SQLite de otra cuenta.
           final ids = lote.map((op) => op.id).toSet();
           if (resp.results.any((r) => !ids.contains(r.clientRequestId))) {
+            await dao.liberarEnvio(ids.toList());
             return false;
           }
-          await dao.aplicarResultados(
-            resp.results.where((r) => r.status != 'RETRY').toList(),
-          );
+          await dao.aplicarResultados(resp.results);
+          final recibidas = resp.results
+              .map((result) => result.clientRequestId)
+              .toSet();
+          await dao.liberarEnvio(ids.difference(recibidas).toList());
           confirmadas += resp.confirmed;
           conflictos += resp.conflicts;
           rechazadas += resp.rejected;
           await baseLocal.borrarMeta(claveEspera);
         } on ApiException catch (e) {
+          await dao.liberarEnvio(lote.map((op) => op.id).toList());
           if (e.sinConexion || e.statusCode == 429 || e.statusCode == 503) {
             final espera = policy.esperaPara(1, e.retryAfter);
             await baseLocal.guardarMeta(

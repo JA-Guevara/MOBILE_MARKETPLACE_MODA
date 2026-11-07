@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/usuarios_catalogo/application/session_controller.dart';
+import '../core/offline/conectividad.dart';
+import '../features/operacion_offline/application/sincronizacion_controller.dart';
 import '../features/ventas_pagos/application/pedidos_controller.dart';
 import '../features/ventas_pagos/application/commerce_providers.dart';
 import '../features/ventas_pagos/infrastructure/pending_payment_store.dart';
@@ -38,7 +40,9 @@ class _FashionStoreAppState extends ConsumerState<FashionStoreApp>
   }
 
   Future<void> _verificarPagoPendiente() async {
-    if (_verificandoPago || !mounted || !ref.read(sessionProvider).autenticado) {
+    if (_verificandoPago ||
+        !mounted ||
+        !ref.read(sessionProvider).autenticado) {
       return;
     }
     _verificandoPago = true;
@@ -50,7 +54,9 @@ class _FashionStoreAppState extends ConsumerState<FashionStoreApp>
       for (var intento = 0; intento < 3; intento++) {
         if (intento > 0) await Future<void>.delayed(const Duration(seconds: 2));
         if (!mounted || !ref.read(sessionProvider).autenticado) return;
-        final pedido = await ref.read(commerceApiProvider).reconciliarPagoPedido(id);
+        final pedido = await ref
+            .read(commerceApiProvider)
+            .reconciliarPagoPedido(id);
         if (!mounted) return;
         ref.invalidate(pedidoProvider(id));
         unawaited(ref.read(pedidosProvider.notifier).cargar());
@@ -77,8 +83,39 @@ class _FashionStoreAppState extends ConsumerState<FashionStoreApp>
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(sessionProvider, (_, actual) {
+    ref.listen(sessionProvider, (anterior, actual) {
       if (actual.autenticado) unawaited(_verificarPagoPendiente());
+      if (actual.autenticado &&
+          !actual.sinConexion &&
+          actual.usuario?.puede('sync.write') == true &&
+          (anterior?.usuario?.id != actual.usuario?.id ||
+              anterior?.sinConexion == true)) {
+        Future.microtask(() {
+          if (mounted) {
+            unawaited(
+              ref
+                  .read(sincronizacionControllerProvider.notifier)
+                  .sincronizarAhora(),
+            );
+          }
+        });
+      }
+    });
+    ref.listen(conectividadProvider, (_, actual) {
+      if (actual.asData?.value == true) {
+        Future.microtask(() async {
+          if (!mounted) return;
+          if (ref.read(sessionProvider).sinConexion) {
+            await ref.read(sessionProvider.notifier).restaurar();
+          }
+          if (mounted &&
+              ref.read(sessionProvider).usuario?.puede('sync.write') == true) {
+            await ref
+                .read(sincronizacionControllerProvider.notifier)
+                .sincronizarAhora();
+          }
+        });
+      }
     });
     return MaterialApp.router(
       title: 'FashionStore',
@@ -89,4 +126,3 @@ class _FashionStoreAppState extends ConsumerState<FashionStoreApp>
     );
   }
 }
-

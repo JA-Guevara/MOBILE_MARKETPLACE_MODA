@@ -123,7 +123,17 @@ class CatalogoLocalDao {
           WHERE r.tenant_id=? AND r.sucursal_id=? AND ri.variante_id=? AND r.estado='PENDIENTE_CONFIRMACION' ''',
           [i.empresa.id, e.sucursalId, e.varianteId],
         );
-        final retenido = (pendientes.first['total'] as num).toInt();
+        final ventas = await txn.rawQuery(
+          '''
+          SELECT COALESCE(SUM(i.cantidad),0) AS total FROM venta_items_locales i
+          JOIN ventas_locales v ON v.id=i.venta_id
+          WHERE v.tenant_id=? AND v.sucursal_id=? AND i.variante_id=?
+          AND v.estado IN ('PENDIENTE_SINCRONIZAR','EN_CONFLICTO')''',
+          [i.empresa.id, e.sucursalId, e.varianteId],
+        );
+        final retenido =
+            (pendientes.first['total'] as num).toInt() +
+            (ventas.first['total'] as num).toInt();
         final disponible = (e.cantidad - retenido).clamp(0, e.cantidad);
         await txn.insert('existencias', {
           'variante_id': e.varianteId,
