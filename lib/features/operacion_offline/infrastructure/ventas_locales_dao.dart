@@ -12,6 +12,7 @@ class VentasLocalesDao {
     required String cajaId,
     required Map<String, int> cantidades,
     required double recibido,
+    String? clienteId,
   }) async {
     final subscription = usuario.suscripcion;
     final fin = DateTime.tryParse(subscription?.fin ?? '');
@@ -57,6 +58,23 @@ class VentasLocalesDao {
       );
       if (cajas.isEmpty) {
         throw StateError('Elegí una caja autorizada de esta sucursal.');
+      }
+      // Cliente opcional (CU-18): solo uno descargado en el catálogo de esta
+      // empresa; el nombre se toma de la base local, no de la pantalla.
+      Map<String, Object?>? cliente;
+      if (clienteId != null && clienteId.isNotEmpty) {
+        final clientes = await txn.query(
+          'clientes',
+          columns: ['id', 'nombre'],
+          where: 'id=?',
+          whereArgs: [clienteId],
+        );
+        if (clientes.isEmpty) {
+          throw StateError(
+            'El cliente elegido no está en el catálogo local de tu empresa.',
+          );
+        }
+        cliente = clientes.single;
       }
       final id = CommerceApi.nuevaClaveSolicitud();
       final timestamp = DateTime.now().toUtc().toIso8601String();
@@ -105,6 +123,8 @@ class VentasLocalesDao {
         'sucursal_id': branch,
         'caja_id': cajaId,
         'usuario_id': usuario.id,
+        'cliente_id': cliente?['id'],
+        'cliente_nombre': cliente?['nombre'],
         'subtotal': total,
         'descuento': 0,
         'total': total,

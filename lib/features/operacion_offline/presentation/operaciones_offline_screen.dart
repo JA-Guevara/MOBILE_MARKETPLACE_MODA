@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/offline/base_local.dart';
 import '../../usuarios_catalogo/application/session_controller.dart';
 import '../application/sincronizacion_controller.dart';
@@ -191,6 +192,8 @@ class _OperacionesOfflineScreenState
               Text('${operation['estado']} · ${operation['creada_en']}'),
               if (sales.isNotEmpty) ...[
                 Text('Folio ${sales.single['folio']}'),
+                if (sales.single['cliente_nombre'] != null)
+                  Text('Cliente ${sales.single['cliente_nombre']}'),
                 for (final item in items)
                   Text(
                     '${item['producto_nombre']} · ${item['cantidad']} · Bs ${item['total_linea']}',
@@ -254,6 +257,11 @@ class _OperacionesOfflineScreenState
               Text(
                 '${sync.ultimoResultado!.confirmed} confirmadas · ${sync.ultimoResultado!.conflicts} conflictos · ${sync.ultimoResultado!.rejected} rechazadas',
               ),
+            OutlinedButton.icon(
+              onPressed: () => context.push('/sin-conexion/historial'),
+              icon: const Icon(Icons.history),
+              label: const Text('Historial de sincronización'),
+            ),
             for (final operation in _operaciones)
               ListTile(
                 title: Text('${operation['tipo']} · ${operation['estado']}'),

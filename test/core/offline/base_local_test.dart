@@ -264,4 +264,44 @@ void main() {
       expect(Usuario.desdeJson(perfil).sucursalesAutorizadas, isEmpty);
     },
   );
+
+  test('v3 a v4 conserva el historial y lo separa por cuenta', () async {
+    final directorio = await Directory.systemTemp.createTemp(
+      'fashionstore-v4-',
+    );
+    final ruta = '${directorio.path}/v3.db';
+    try {
+      final v3 = await databaseFactoryFfi.openDatabase(
+        ruta,
+        options: OpenDatabaseOptions(
+          version: 3,
+          onCreate: (db, version) => EsquemaLocal.crear(db, 3),
+        ),
+      );
+      // Historial tal como lo dejaba la v3 (sin empresa ni usuario).
+      await v3.execute('DROP TABLE historial_sync');
+      await v3.execute(
+        'CREATE TABLE historial_sync (id INTEGER PRIMARY KEY AUTOINCREMENT, iniciado_en TEXT NOT NULL, terminado_en TEXT, enviadas INTEGER NOT NULL, confirmadas INTEGER NOT NULL, conflictos INTEGER NOT NULL, rechazadas INTEGER NOT NULL, error TEXT, codigo_error TEXT, http_status INTEGER, request_id TEXT, lote_id TEXT)',
+      );
+      await v3.insert('historial_sync', {
+        'iniciado_en': '2026-11-01T10:00:00.000',
+        'enviadas': 2,
+        'confirmadas': 2,
+        'conflictos': 0,
+        'rechazadas': 0,
+      });
+      await v3.close();
+      final migrada = BaseLocal(fabrica: databaseFactoryFfi, ruta: ruta);
+      final db = await migrada.abrir();
+      expect(await db.getVersion(), EsquemaLocal.version);
+      final filas = await db.query('historial_sync');
+      expect(filas, hasLength(1));
+      expect(filas.single['enviadas'], 2);
+      expect(filas.single.containsKey('tenant_id'), isTrue);
+      expect(filas.single['tenant_id'], isNull);
+      await migrada.cerrar();
+    } finally {
+      await directorio.delete(recursive: true);
+    }
+  });
 }

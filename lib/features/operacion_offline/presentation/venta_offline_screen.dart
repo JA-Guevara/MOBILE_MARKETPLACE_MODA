@@ -15,6 +15,8 @@ class VentaOfflineScreen extends ConsumerStatefulWidget {
 
 class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
   final _efectivo = TextEditingController();
+  final _buscarCliente = TextEditingController();
+  ClienteLocal? _cliente;
   final _cantidades = <String, int>{};
   List<CajaLocal> _cajas = [];
   String? _caja, _error;
@@ -48,6 +50,7 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
   @override
   void dispose() {
     _efectivo.dispose();
+    _buscarCliente.dispose();
     super.dispose();
   }
 
@@ -70,12 +73,15 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
             recibido:
                 double.tryParse(_efectivo.text.replaceAll(',', '.')) ??
                 double.nan,
+            clienteId: _cliente?.id,
           );
       if (!mounted) return;
       setState(() {
         _comprobante = venta;
         _cantidades.clear();
         _efectivo.clear();
+        _cliente = null;
+        _buscarCliente.clear();
       });
       await ref.read(catalogoOfflineProvider.notifier).iniciar();
     } catch (error) {
@@ -83,6 +89,75 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
+  }
+
+  /// CU-18: cliente opcional, buscado por nombre entre los clientes que el
+  /// snapshot de la empresa dejó en este dispositivo.
+  Widget _selectorCliente(List<ClienteLocal> clientes) {
+    final elegido = _cliente;
+    if (elegido != null) {
+      return ListTile(
+        key: const Key('venta-cliente-elegido'),
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.person),
+        title: Text(elegido.nombre),
+        subtitle: const Text('Cliente de la venta'),
+        trailing: IconButton(
+          tooltip: 'Quitar cliente',
+          onPressed: _guardando
+              ? null
+              : () => setState(() {
+                  _cliente = null;
+                  _buscarCliente.clear();
+                }),
+          icon: const Icon(Icons.close),
+        ),
+      );
+    }
+    final texto = _buscarCliente.text.trim().toLowerCase();
+    final coincidencias = texto.isEmpty
+        ? const <ClienteLocal>[]
+        : clientes
+              .where((c) => c.nombre.toLowerCase().contains(texto))
+              .take(5)
+              .toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          key: const Key('venta-buscar-cliente'),
+          controller: _buscarCliente,
+          enabled: !_guardando && clientes.isNotEmpty,
+          decoration: InputDecoration(
+            labelText: 'Cliente (opcional)',
+            hintText: clientes.isEmpty
+                ? 'No hay clientes descargados'
+                : 'Buscar por nombre',
+            prefixIcon: const Icon(Icons.person_search),
+          ),
+          onChanged: (_) => setState(() {}),
+        ),
+        for (final c in coincidencias)
+          ListTile(
+            dense: true,
+            title: Text(c.nombre),
+            subtitle: c.documentoFinal == null
+                ? null
+                : Text('Documento …${c.documentoFinal}'),
+            onTap: () => setState(() {
+              _cliente = c;
+              _buscarCliente.clear();
+            }),
+          ),
+        if (texto.isNotEmpty && coincidencias.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'Sin coincidencias. La venta puede seguir sin cliente.',
+            ),
+          ),
+      ],
+    );
   }
 
   @override
@@ -126,6 +201,8 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             Text('${comprobante['folio']} · ${comprobante['estado']}'),
+            if (comprobante['cliente_nombre'] != null)
+              Text('Cliente: ${comprobante['cliente_nombre']}'),
             Text(
               'Total Bs ${(comprobante['total'] as num).toStringAsFixed(2)}',
             ),
@@ -160,6 +237,7 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
                   ? null
                   : (value) => setState(() => _caja = value),
             ),
+            _selectorCliente(datos.clientes),
             TextField(
               decoration: const InputDecoration(
                 labelText: 'Buscar por prenda o SKU',

@@ -3,7 +3,7 @@ import 'package:sqflite/sqflite.dart';
 
 /// Esquema compartido con la PWA; los tokens nunca se guardan en esta base.
 class EsquemaLocal {
-  static const version = 3;
+  static const version = 4;
   static const tablas = <String>[
     '''CREATE TABLE productos (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, slug TEXT NOT NULL, categoria TEXT, marca TEXT, precio_base REAL NOT NULL, precio_oferta REAL, imagen_url TEXT, destacado INTEGER NOT NULL, actualizado_en TEXT)''',
     '''CREATE TABLE variantes (id TEXT PRIMARY KEY, producto_id TEXT NOT NULL, sku TEXT NOT NULL, talla TEXT NOT NULL, color TEXT NOT NULL, color_hex TEXT, precio REAL, activa INTEGER NOT NULL)''',
@@ -42,6 +42,23 @@ class EsquemaLocal {
   static Future<void> migrar(DatabaseExecutor db, int de, int a) async {
     if (de < 2 && a >= 2) await _asegurarV2(db);
     if (de < 3 && a >= 3) await _asegurarReintegros(db);
+    if (de < 4 && a >= 4) await _asegurarHistorialPorCuenta(db);
+  }
+
+  /// v4: el historial de sincronización se consulta por empresa y usuario
+  /// (RN03). Las filas previas quedan con NULL: se conservan, pero no se
+  /// muestran a ninguna cuenta porque no se puede saber a quién pertenecían.
+  static Future<void> _asegurarHistorialPorCuenta(DatabaseExecutor db) async {
+    final columns = await _columnas(db, 'historial_sync');
+    if (columns.isEmpty) return;
+    for (final name in ['tenant_id', 'usuario_id']) {
+      if (!columns.contains(name)) {
+        await db.execute('ALTER TABLE historial_sync ADD COLUMN $name TEXT');
+      }
+    }
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS ix_historial_cuenta ON historial_sync(tenant_id, usuario_id, iniciado_en)',
+    );
   }
 
   static Future<void> _asegurarReintegros(DatabaseExecutor db) async {
@@ -83,10 +100,12 @@ class EsquemaLocal {
         fkItems.isNotEmpty &&
         fkOperaciones.length == 2) {
       await _asegurarReintegros(db);
+      await _asegurarHistorialPorCuenta(db);
       return;
     }
     await db.transaction(_asegurarV2);
     await _asegurarReintegros(db);
+    await _asegurarHistorialPorCuenta(db);
   }
 
   static Future<void> _asegurarV2(DatabaseExecutor db) async {
@@ -162,7 +181,7 @@ class EsquemaLocal {
         : await db.query('historial_sync');
     if (historial.isNotEmpty) await db.execute('DROP TABLE historial_sync');
     await db.execute(
-      '''CREATE TABLE historial_sync (id INTEGER PRIMARY KEY AUTOINCREMENT, iniciado_en TEXT NOT NULL, terminado_en TEXT, enviadas INTEGER NOT NULL, confirmadas INTEGER NOT NULL, conflictos INTEGER NOT NULL, rechazadas INTEGER NOT NULL, error TEXT, codigo_error TEXT, http_status INTEGER, request_id TEXT, lote_id TEXT)''',
+      '''CREATE TABLE historial_sync (id INTEGER PRIMARY KEY AUTOINCREMENT, iniciado_en TEXT NOT NULL, terminado_en TEXT, enviadas INTEGER NOT NULL, confirmadas INTEGER NOT NULL, conflictos INTEGER NOT NULL, rechazadas INTEGER NOT NULL, error TEXT, codigo_error TEXT, http_status INTEGER, request_id TEXT, lote_id TEXT, tenant_id TEXT, usuario_id TEXT)''',
     );
     for (final fila in filasHistorial) {
       await db.insert('historial_sync', fila);

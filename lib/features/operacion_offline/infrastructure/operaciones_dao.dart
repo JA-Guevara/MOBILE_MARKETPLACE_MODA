@@ -218,9 +218,13 @@ class OperacionesDao {
     String? loteId,
     int? httpStatus,
     String? codigoError,
+    String? tenantId,
+    String? usuarioId,
   }) async {
     final db = await base.abrir();
     await db.insert('historial_sync', {
+      'tenant_id': tenantId,
+      'usuario_id': usuarioId,
       'iniciado_en': iniciadoEn.toIso8601String(),
       'terminado_en': terminadoEn.toIso8601String(),
       'enviadas': enviadas,
@@ -233,13 +237,20 @@ class OperacionesDao {
     });
   }
 
-  Future<List<Map<String, dynamic>>> listarHistorial({int limite = 50}) async {
+  /// Historial de la cuenta actual (RN03): solo filas de esa empresa y usuario.
+  Future<List<RegistroSincronizacion>> listarHistorial({
+    required String tenantId,
+    required String usuarioId,
+    int limite = 50,
+  }) async {
     final db = await base.abrir();
     final rows = await db.query(
       'historial_sync',
-      orderBy: 'iniciado_en DESC',
+      where: 'tenant_id = ? AND usuario_id = ?',
+      whereArgs: [tenantId, usuarioId],
+      orderBy: 'iniciado_en DESC, id DESC',
       limit: limite,
     );
-    return rows.map((r) => Map<String, dynamic>.from(r)).toList();
+    return rows.map(RegistroSincronizacion.desdeFila).toList();
   }
 }

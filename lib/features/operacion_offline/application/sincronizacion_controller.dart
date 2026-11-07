@@ -170,6 +170,8 @@ class SincronizacionController extends StateNotifier<SincronizacionEstado> {
           );
 
           await dao.registrarHistorialSync(
+            tenantId: tenantId,
+            usuarioId: usuarioId,
             iniciadoEn: ahora,
             terminadoEn: DateTime.now(),
             enviadas: ops.length,
@@ -200,6 +202,8 @@ class SincronizacionController extends StateNotifier<SincronizacionEstado> {
             );
           }
           await dao.registrarHistorialSync(
+            tenantId: tenantId,
+            usuarioId: usuarioId,
             iniciadoEn: ahora,
             terminadoEn: DateTime.now(),
             enviadas: ops.length,

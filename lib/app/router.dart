@@ -25,6 +25,7 @@ import 'home_shell.dart';
 import '../features/operacion_offline/presentation/catalogo_adaptable.dart';
 import '../features/operacion_offline/presentation/venta_offline_screen.dart';
 import '../features/operacion_offline/presentation/operaciones_offline_screen.dart';
+import '../features/operacion_offline/presentation/historial_sincronizacion_screen.dart';
 import '../features/operacion_offline/presentation/preparar_offline_screen.dart';
 import '../features/operacion_offline/presentation/catalogo_offline_screen.dart';
 import '../features/operacion_offline/presentation/reserva_offline_screen.dart';
@@ -112,6 +113,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/sin-conexion/operaciones',
         parentNavigatorKey: _raiz,
         builder: (context, estado) => const OperacionesOfflineScreen(),
+      ),
+      GoRoute(
+        path: '/sin-conexion/historial',
+        parentNavigatorKey: _raiz,
+        builder: (context, estado) => const HistorialSincronizacionScreen(),
       ),
       GoRoute(
         path: '/sin-conexion/reservar',

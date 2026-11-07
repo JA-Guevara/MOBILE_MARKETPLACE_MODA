@@ -123,3 +123,61 @@ List<List<T>> enLotes<T>(List<T> items, int tamanoLote) {
   }
   return lotes;
 }
+
+/// Fila de `historial_sync`: resultado de un envío de lote al servidor.
+class RegistroSincronizacion {
+  const RegistroSincronizacion({
+    required this.id,
+    required this.iniciadoEn,
+    this.terminadoEn,
+    required this.enviadas,
+    required this.confirmadas,
+    required this.conflictos,
+    required this.rechazadas,
+    this.error,
+    this.codigoError,
+    this.httpStatus,
+    this.loteId,
+  });
+
+  final int id;
+  final DateTime iniciadoEn;
+  final DateTime? terminadoEn;
+  final int enviadas, confirmadas, conflictos, rechazadas;
+  final String? error, codigoError, loteId;
+  final int? httpStatus;
+
+  bool get fallido => codigoError != null || error != null;
+
+  /// Mensaje legible para el operador; nunca expone detalles técnicos crudos.
+  String? get mensajeError {
+    if (!fallido) return null;
+    if (error != null && error!.trim().isNotEmpty) return error;
+    if (codigoError == 'NETWORK') {
+      return 'Sin conexión con el servidor. Las operaciones siguieron pendientes.';
+    }
+    if (httpStatus == 429 || httpStatus == 503) {
+      return 'Servidor ocupado (HTTP $httpStatus). Se reintentará más tarde.';
+    }
+    return 'El servidor no aceptó el lote${httpStatus != null ? ' (HTTP $httpStatus)' : ''}. Las operaciones siguieron pendientes.';
+  }
+
+  factory RegistroSincronizacion.desdeFila(Map<String, Object?> f) {
+    int entero(Object? v) => (v as num?)?.toInt() ?? 0;
+    return RegistroSincronizacion(
+      id: entero(f['id']),
+      iniciadoEn:
+          DateTime.tryParse(f['iniciado_en'] as String? ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      terminadoEn: DateTime.tryParse(f['terminado_en'] as String? ?? ''),
+      enviadas: entero(f['enviadas']),
+      confirmadas: entero(f['confirmadas']),
+      conflictos: entero(f['conflictos']),
+      rechazadas: entero(f['rechazadas']),
+      error: f['error'] as String?,
+      codigoError: f['codigo_error'] as String?,
+      httpStatus: (f['http_status'] as num?)?.toInt(),
+      loteId: f['lote_id'] as String?,
+    );
+  }
+}

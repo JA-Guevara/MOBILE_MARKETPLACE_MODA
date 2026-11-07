@@ -128,4 +128,68 @@ void main() {
       4,
     );
   });
+
+  group('CU-18 cliente opcional', () {
+    test('guarda el cliente local y lo envía como customer_id', () async {
+      final venta = await VentasLocalesDao(base).registrar(
+        usuario: user,
+        cajaId: 'cash-1',
+        cantidades: {'v1': 1},
+        recibido: 500,
+        clienteId: 'c1',
+      );
+      expect(venta['cliente_id'], 'c1');
+      expect(venta['cliente_nombre'], 'Ana Perez');
+      final db = await base.abrir();
+      final fila = (await db.query('ventas_locales')).single;
+      expect(fila['cliente_id'], 'c1');
+      expect(fila['cliente_nombre'], 'Ana Perez');
+      final pending = await OperacionesDao(
+        base,
+      ).tomarParaEnvio(tenantId: 'tenant-a', usuarioId: 'u1');
+      expect(pending.single.payload['customer_id'], 'c1');
+    });
+
+    test('sin cliente la venta sigue igual y customer_id va nulo', () async {
+      await VentasLocalesDao(base).registrar(
+        usuario: user,
+        cajaId: 'cash-1',
+        cantidades: {'v1': 1},
+        recibido: 500,
+      );
+      final db = await base.abrir();
+      final fila = (await db.query('ventas_locales')).single;
+      expect(fila['cliente_id'], isNull);
+      expect(fila['cliente_nombre'], isNull);
+      final pending = await OperacionesDao(
+        base,
+      ).tomarParaEnvio(tenantId: 'tenant-a', usuarioId: 'u1');
+      expect(pending.single.payload.containsKey('customer_id'), isTrue);
+      expect(pending.single.payload['customer_id'], isNull);
+    });
+
+    test('cliente ajeno al catálogo local revierte toda la venta', () async {
+      await expectLater(
+        VentasLocalesDao(base).registrar(
+          usuario: user,
+          cajaId: 'cash-1',
+          cantidades: {'v1': 1},
+          recibido: 500,
+          clienteId: 'cliente-de-otra-empresa',
+        ),
+        throwsStateError,
+      );
+      final db = await base.abrir();
+      expect(await db.query('ventas_locales'), isEmpty);
+      expect(await db.query('operaciones_pendientes'), isEmpty);
+      expect(
+        (await db.query(
+          'existencias',
+          where: 'variante_id=? AND sucursal_id=?',
+          whereArgs: ['v1', 'b1'],
+        )).single['cantidad'],
+        4,
+      );
+    });
+  });
 }
