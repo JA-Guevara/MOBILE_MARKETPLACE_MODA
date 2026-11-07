@@ -196,26 +196,88 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           if (comprobante != null) ...[
-            const Text(
-              'COMPROBANTE PROVISIONAL',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            Text('${comprobante['folio']} · ${comprobante['estado']}'),
-            if (comprobante['cliente_nombre'] != null)
-              Text('Cliente: ${comprobante['cliente_nombre']}'),
-            Text(
-              'Total Bs ${(comprobante['total'] as num).toStringAsFixed(2)}',
-            ),
-            Text(
-              'Vuelto Bs ${(comprobante['vuelto'] as num).toStringAsFixed(2)}',
-            ),
-            FilledButton(
-              onPressed: () => context.push('/sin-conexion/operaciones'),
-              child: const Text('Consultar operaciones locales'),
-            ),
-            TextButton(
-              onPressed: () => setState(() => _comprobante = null),
-              child: const Text('Nueva venta'),
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF86EFAC), width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFDCFCE7),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 34),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '¡Venta Provisional Registrada!',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Folio: #${comprobante['folio']} · ${comprobante['estado']}',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
+                  ),
+                  if (comprobante['cliente_nombre'] != null) ...[
+                    const SizedBox(height: 4),
+                    Text('Cliente: ${comprobante['cliente_nombre']}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ],
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      children: [
+                        Text('TOTAL COBRADO', style: TextStyle(fontSize: 11, letterSpacing: 1.1, color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Bs ${(comprobante['total'] as num).toStringAsFixed(2)}',
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF1E293B)),
+                        ),
+                        if ((comprobante['vuelto'] as num? ?? 0) > 0) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            'Vuelto a entregar: Bs ${(comprobante['vuelto'] as num).toStringAsFixed(2)}',
+                            style: const TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: () => context.push('/sin-conexion/operaciones'),
+                    icon: const Icon(Icons.list_alt_rounded),
+                    label: const Text('Consultar operaciones locales'),
+                  ),
+                  const SizedBox(height: 6),
+                  TextButton.icon(
+                    onPressed: () => setState(() => _comprobante = null),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Nueva venta'),
+                  ),
+                ],
+              ),
             ),
           ] else if (estado.version == null) ...[
             const Text('Prepará el catálogo de tu empresa antes de vender.'),

@@ -14,6 +14,7 @@ import '../application/pedidos_controller.dart';
 import '../domain/commerce_models.dart';
 import '../infrastructure/pending_payment_store.dart';
 import 'stripe_checkout_launcher.dart';
+import '../../../shared/dialogs/alerta_pago_dialog.dart';
 
 /// Carrito y checkout (`/carrito`).
 ///
@@ -104,16 +105,29 @@ class _CarritoScreenState extends ConsumerState<CarritoScreen> {
       }
     }
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          url == null || url.isEmpty
-              ? 'Pedido ${resultado.pedido.number} creado.'
-              : 'Completá el pago; al volver verificaremos el pedido automáticamente.',
+    if (url == null || url.isEmpty) {
+      await AlertaPagoDialog.mostrar(
+        context: context,
+        numeroPedido: resultado.pedido.number,
+        total: (num.tryParse(resultado.pedido.total.toString()) ?? 0).toDouble(),
+        metodoPago: resultado.pedido.paymentMethod,
+        email: resultado.pedido.customerEmail,
+        onVerDetalle: () {
+          if (mounted) context.go('/mi-cuenta/pedidos/${resultado.pedido.id}');
+        },
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Completá el pago; al volver verificaremos el pedido automáticamente.',
+          ),
         ),
-      ),
-    );
-    context.go('/mi-cuenta/pedidos/${resultado.pedido.id}');
+      );
+    }
+    if (mounted) {
+      context.go('/mi-cuenta/pedidos/${resultado.pedido.id}');
+    }
   }
 
   @override
