@@ -50,8 +50,10 @@ class ReservasController extends StateNotifier<EstadoReservas> {
     state = state.copyWith(cargando: true, limpiarAvisos: true);
     try {
       final pagina = await _api.mias();
+      if (!mounted) return;
       state = state.copyWith(reservas: pagina.items, cargando: false);
     } on ApiException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(cargando: false, error: error.message);
     }
   }
@@ -61,9 +63,12 @@ class ReservasController extends StateNotifier<EstadoReservas> {
     state = state.copyWith(ocupado: true, limpiarAvisos: true);
     try {
       await _api.cancelar(reserva.id);
+      if (!mounted) return;
       await cargar();
+      if (!mounted) return;
       state = state.copyWith(ocupado: false, mensaje: 'Cancelamos tu visita.');
     } on ApiException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(ocupado: false, error: error.message);
     }
   }
@@ -171,6 +176,7 @@ class NuevaReservaController extends StateNotifier<EstadoNuevaReserva> {
     state = state.copyWith(cargando: true, limpiarError: true);
     try {
       final sucursales = await _comercio.sucursales();
+      if (!mounted) return;
       state = state.copyWith(
         sucursales: sucursales,
         sucursalId: state.sucursalId.isNotEmpty
@@ -180,6 +186,7 @@ class NuevaReservaController extends StateNotifier<EstadoNuevaReserva> {
       );
       await revisarDisponibilidad();
     } on ApiException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(cargando: false, error: error.message);
     }
   }
@@ -286,12 +293,15 @@ class NuevaReservaController extends StateNotifier<EstadoNuevaReserva> {
         items: state.items,
         notas: state.notas.trim().isEmpty ? null : state.notas.trim(),
       );
+      if (!mounted) return null;
       state = state.copyWith(ocupado: false, creada: reserva, items: const []);
       return reserva;
     } on ApiException catch (error) {
+      if (!mounted) return null;
       state = state.copyWith(ocupado: false, error: error.message);
       return null;
     } catch (_) {
+      if (!mounted) return null;
       state = state.copyWith(
         ocupado: false,
         error: 'No pudimos confirmar la reserva. Intentá nuevamente.',

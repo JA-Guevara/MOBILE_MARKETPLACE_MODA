@@ -104,6 +104,7 @@ class ReservasApi {
   }
 }
 
-final Provider<ReservasApi> reservasApiProvider = Provider<ReservasApi>(
-  (ref) => ReservasApi(ref.watch(apiClientProvider)),
-);
+final Provider<ReservasApi> reservasApiProvider = Provider<ReservasApi>((ref) {
+  ref.watch(identidadSesionProvider);
+  return ReservasApi(ref.watch(apiClientProvider));
+});

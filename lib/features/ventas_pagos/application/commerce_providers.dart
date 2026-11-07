@@ -9,5 +9,7 @@ import '../infrastructure/commerce_api.dart';
 /// esto, el proveedor que lo cuelga del mismo `ApiClient` que lleva el bearer
 /// y renueva la sesión. Construirlo a mano en cada pantalla habría dejado
 /// peticiones sin token.
-final Provider<CommerceApi> commerceApiProvider =
-    Provider<CommerceApi>((ref) => CommerceApi(ref.watch(apiClientProvider)));
+final Provider<CommerceApi> commerceApiProvider = Provider<CommerceApi>((ref) {
+  ref.watch(identidadSesionProvider);
+  return CommerceApi(ref.watch(apiClientProvider));
+});

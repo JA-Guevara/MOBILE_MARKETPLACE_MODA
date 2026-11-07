@@ -6,15 +6,16 @@ import '../domain/reporte_ia.dart';
 import '../infrastructure/reportes_ia_api.dart';
 
 final reportesIaApiProvider = Provider<ReportesIaApi>((ref) {
+  ref.watch(identidadSesionProvider);
   final client = ref.watch(apiClientProvider);
   return ReportesIaApi(client);
 });
 
 final reporteIaControllerProvider =
     StateNotifierProvider<ReporteIaController, EstadoReporteIa>((ref) {
-  final api = ref.watch(reportesIaApiProvider);
-  return ReporteIaController(api);
-});
+      final api = ref.watch(reportesIaApiProvider);
+      return ReporteIaController(api);
+    });
 
 class ReportesIaScreen extends ConsumerStatefulWidget {
   const ReportesIaScreen({super.key});
@@ -54,7 +55,10 @@ class _ReportesIaScreenState extends ConsumerState<ReportesIaScreen> {
               child: Chip(
                 label: Text(
                   '${state.reporte!.usedCount}/${state.reporte!.limitCount}',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 backgroundColor: Colors.blue.shade50,
               ),
@@ -69,7 +73,9 @@ class _ReportesIaScreenState extends ConsumerState<ReportesIaScreen> {
             // Barra de entrada y micrófono
             Card(
               elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
@@ -166,8 +172,9 @@ class _ReportesIaScreenState extends ConsumerState<ReportesIaScreen> {
                       ...state.interpretacion!.questions.map((q) => Text(q)),
                       const SizedBox(height: 8),
                       ElevatedButton(
-                        onPressed: () =>
-                            ref.read(reporteIaControllerProvider.notifier).usarMesEnCurso(),
+                        onPressed: () => ref
+                            .read(reporteIaControllerProvider.notifier)
+                            .usarMesEnCurso(),
                         child: const Text('Usar mes en curso'),
                       ),
                     ],
@@ -202,9 +209,14 @@ class _ReportesIaScreenState extends ConsumerState<ReportesIaScreen> {
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
-                  children: chipsDeSpec(state.interpretacion!.spec!).map((chip) {
+                  children: chipsDeSpec(state.interpretacion!.spec!).map((
+                    chip,
+                  ) {
                     return Chip(
-                      label: Text('${chip.$1}: ${chip.$2}', style: const TextStyle(fontSize: 11)),
+                      label: Text(
+                        '${chip.$1}: ${chip.$2}',
+                        style: const TextStyle(fontSize: 11),
+                      ),
                       backgroundColor: Colors.grey.shade200,
                     );
                   }).toList(),
@@ -214,7 +226,9 @@ class _ReportesIaScreenState extends ConsumerState<ReportesIaScreen> {
               // Narrativa inteligente
               Card(
                 color: Colors.blue.shade50,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Row(
@@ -254,7 +268,9 @@ class _ReportesIaScreenState extends ConsumerState<ReportesIaScreen> {
                 children: [
                   Text(
                     state.reporte!.title,
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   SegmentedButton<String>(
                     segments: const [
@@ -263,7 +279,9 @@ class _ReportesIaScreenState extends ConsumerState<ReportesIaScreen> {
                     ],
                     selected: {state.vista},
                     onSelectionChanged: (set) {
-                      ref.read(reporteIaControllerProvider.notifier).cambiarVista(set.first);
+                      ref
+                          .read(reporteIaControllerProvider.notifier)
+                          .cambiarVista(set.first);
                     },
                   ),
                 ],
@@ -274,7 +292,9 @@ class _ReportesIaScreenState extends ConsumerState<ReportesIaScreen> {
               if (state.vista == 'grafico')
                 Card(
                   elevation: 1,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -284,22 +304,28 @@ class _ReportesIaScreenState extends ConsumerState<ReportesIaScreen> {
                           state.reporte!.chartLabel.isNotEmpty
                               ? state.reporte!.chartLabel
                               : state.reporte!.title,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         ...state.reporte!.rows.map((r) {
-                          final label = r[state.reporte!.chartX]?.toString() ?? '';
+                          final label =
+                              r[state.reporte!.chartX]?.toString() ?? '';
                           final rawVal = r[state.reporte!.chartY];
                           final val = (rawVal is num)
                               ? rawVal.toDouble()
-                              : double.tryParse(rawVal?.toString() ?? '0') ?? 0.0;
+                              : double.tryParse(rawVal?.toString() ?? '0') ??
+                                    0.0;
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Expanded(
                                       child: Text(
@@ -311,7 +337,9 @@ class _ReportesIaScreenState extends ConsumerState<ReportesIaScreen> {
                                     Text(
                                       'Bs ${val.toStringAsFixed(2)}',
                                       style: const TextStyle(
-                                          fontWeight: FontWeight.bold, fontSize: 12),
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -322,7 +350,10 @@ class _ReportesIaScreenState extends ConsumerState<ReportesIaScreen> {
                                     value: (val / 1000).clamp(0.05, 1.0),
                                     minHeight: 8,
                                     backgroundColor: Colors.grey.shade200,
-                                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+                                    valueColor:
+                                        const AlwaysStoppedAnimation<Color>(
+                                          Colors.blue,
+                                        ),
                                   ),
                                 ),
                               ],
@@ -336,13 +367,18 @@ class _ReportesIaScreenState extends ConsumerState<ReportesIaScreen> {
               else
                 Card(
                   elevation: 1,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: DataTable(
                       columns: state.reporte!.columns.map((c) {
                         return DataColumn(
-                          label: Text(c.label, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          label: Text(
+                            c.label,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
                           numeric: c.type != 'text',
                         );
                       }).toList(),

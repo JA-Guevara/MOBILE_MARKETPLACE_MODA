@@ -186,6 +186,7 @@ class CatalogController extends StateNotifier<EstadoCatalogo> {
 
 final StateNotifierProvider<CatalogController, EstadoCatalogo> catalogProvider =
     StateNotifierProvider<CatalogController, EstadoCatalogo>((ref) {
+      ref.watch(identidadSesionProvider);
       ref.watch(tiendaCatalogoProvider);
       return CatalogController(CatalogApi(ref.watch(apiClientProvider)));
     });

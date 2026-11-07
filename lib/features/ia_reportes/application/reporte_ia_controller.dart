@@ -62,25 +62,22 @@ class ReporteIaController extends StateNotifier<EstadoReporteIa> {
     state = state.copyWith(cargando: true, limpiarError: true);
     try {
       final inter = await _api.interpretar(query, canal: canal);
+      if (!mounted) return;
       state = state.copyWith(interpretacion: inter);
 
       if (inter.status == 'READY' && inter.spec != null) {
-        final rep = await _api.ejecutar(inter.spec!, requestId: inter.requestId);
-        state = state.copyWith(
-          cargando: false,
-          reporte: rep,
+        final rep = await _api.ejecutar(
+          inter.spec!,
+          requestId: inter.requestId,
         );
+        if (!mounted) return;
+        state = state.copyWith(cargando: false, reporte: rep);
       } else {
-        state = state.copyWith(
-          cargando: false,
-          reporte: null,
-        );
+        state = state.copyWith(cargando: false, reporte: null);
       }
     } catch (e) {
-      state = state.copyWith(
-        cargando: false,
-        error: e.toString(),
-      );
+      if (!mounted) return;
+      state = state.copyWith(cargando: false, error: e.toString());
     }
   }
 

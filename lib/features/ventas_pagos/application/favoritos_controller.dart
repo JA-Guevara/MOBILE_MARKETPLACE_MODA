@@ -24,13 +24,12 @@ class EstadoFavoritos {
     bool? ocupado,
     String? error,
     bool limpiarError = false,
-  }) =>
-      EstadoFavoritos(
-        favoritos: favoritos ?? this.favoritos,
-        cargando: cargando ?? this.cargando,
-        ocupado: ocupado ?? this.ocupado,
-        error: limpiarError ? null : (error ?? this.error),
-      );
+  }) => EstadoFavoritos(
+    favoritos: favoritos ?? this.favoritos,
+    cargando: cargando ?? this.cargando,
+    ocupado: ocupado ?? this.ocupado,
+    error: limpiarError ? null : (error ?? this.error),
+  );
 }
 
 /// «Mis favoritos» (`favorites-page.component.ts`).
@@ -42,8 +41,11 @@ class FavoritosController extends StateNotifier<EstadoFavoritos> {
   Future<void> cargar() async {
     state = state.copyWith(cargando: true, limpiarError: true);
     try {
-      state = state.copyWith(favoritos: await _comercio.favoritos(), cargando: false);
+      final favoritos = await _comercio.favoritos();
+      if (!mounted) return;
+      state = state.copyWith(favoritos: favoritos, cargando: false);
     } on ApiException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(cargando: false, error: error.message);
     }
   }
@@ -53,6 +55,7 @@ class FavoritosController extends StateNotifier<EstadoFavoritos> {
     state = state.copyWith(ocupado: true, limpiarError: true);
     try {
       await _comercio.quitarFavorito(favorito.productId);
+      if (!mounted) return;
       // Se saca de la lista en vez de releerla entera: la respuesta del
       // backend ya confirmó el borrado y recargar haría parpadear la pantalla.
       state = state.copyWith(
@@ -60,6 +63,7 @@ class FavoritosController extends StateNotifier<EstadoFavoritos> {
         ocupado: false,
       );
     } on ApiException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(ocupado: false, error: error.message);
     }
   }
@@ -78,14 +82,18 @@ class FavoritosController extends StateNotifier<EstadoFavoritos> {
         stockAlert: stock ?? favorito.stockAlert,
         priceAlert: precio ?? favorito.priceAlert,
       );
+      if (!mounted) return;
       await cargar();
+      if (!mounted) return;
       state = state.copyWith(ocupado: false);
     } on ApiException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(ocupado: false, error: error.message);
     }
   }
 }
 
-final StateNotifierProvider<FavoritosController, EstadoFavoritos> favoritosProvider =
-    StateNotifierProvider<FavoritosController, EstadoFavoritos>(
-        (ref) => FavoritosController(ref.watch(commerceApiProvider)));
+final StateNotifierProvider<FavoritosController, EstadoFavoritos>
+favoritosProvider = StateNotifierProvider<FavoritosController, EstadoFavoritos>(
+  (ref) => FavoritosController(ref.watch(commerceApiProvider)),
+);

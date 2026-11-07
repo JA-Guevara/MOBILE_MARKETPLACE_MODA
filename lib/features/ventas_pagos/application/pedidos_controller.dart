@@ -38,11 +38,11 @@ class PedidosController extends StateNotifier<EstadoPedidos> {
   Future<void> cargar() async {
     state = state.copyWith(cargando: true, limpiarError: true);
     try {
-      state = state.copyWith(
-        pedidos: await _comercio.pedidos(),
-        cargando: false,
-      );
+      final pedidos = await _comercio.pedidos();
+      if (!mounted) return;
+      state = state.copyWith(pedidos: pedidos, cargando: false);
     } on ApiException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(cargando: false, error: error.message);
     }
   }
@@ -153,9 +153,11 @@ class PedidoController extends StateNotifier<EstadoPedido> {
     state = state.copyWith(cargando: true, limpiarError: true);
     try {
       final pedido = await _comercio.pedidoDetalle(id);
+      if (!mounted) return;
       state = state.copyWith(pedido: pedido, cargando: false);
       await _leerDevoluciones(id);
     } on ApiException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(cargando: false, error: error.message);
     }
   }
@@ -164,9 +166,9 @@ class PedidoController extends StateNotifier<EstadoPedido> {
   /// backend responde con `can_request: false`; no es un error que mostrar.
   Future<void> _leerDevoluciones(String id) async {
     try {
-      state = state.copyWith(
-        devoluciones: await _comercio.disponibilidadDevolucion(id),
-      );
+      final devoluciones = await _comercio.disponibilidadDevolucion(id);
+      if (!mounted) return;
+      state = state.copyWith(devoluciones: devoluciones);
     } on ApiException {
       // La pantalla simplemente no ofrece devolver.
     }
@@ -196,9 +198,12 @@ class PedidoController extends StateNotifier<EstadoPedido> {
     state = state.copyWith(ocupado: true, limpiarAvisos: true);
     try {
       await _comercio.cancelarPedido(pedido.id, razon: razon);
+      if (!mounted) return;
       await cargar(pedido.id);
+      if (!mounted) return;
       state = state.copyWith(ocupado: false, mensaje: 'Cancelamos tu pedido.');
     } on ApiException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(ocupado: false, errorAccion: error.message);
     }
   }
@@ -211,6 +216,7 @@ class PedidoController extends StateNotifier<EstadoPedido> {
     state = state.copyWith(ocupado: true, limpiarAvisos: true);
     try {
       final sesion = await _comercio.checkout(pedido.id);
+      if (!mounted) return null;
       final url = sesion.url;
       if (url == null || url.isEmpty) {
         // Stripe pudo confirmar el pago mientras se tocaba el botón. El
@@ -222,6 +228,7 @@ class PedidoController extends StateNotifier<EstadoPedido> {
           'delivered',
         ].contains(sesion.status)) {
           await cargar(pedido.id);
+          if (!mounted) return null;
           state = state.copyWith(
             ocupado: false,
             mensaje: 'Este pedido ya está pagado.',
@@ -238,10 +245,13 @@ class PedidoController extends StateNotifier<EstadoPedido> {
       state = state.copyWith(ocupado: false);
       return url;
     } on ApiException catch (error) {
+      if (!mounted) return null;
       if (error.statusCode == 409) await cargar(pedido.id);
+      if (!mounted) return null;
       state = state.copyWith(ocupado: false, errorAccion: error.message);
       return null;
     } catch (_) {
+      if (!mounted) return null;
       state = state.copyWith(
         ocupado: false,
         errorAccion: 'No pudimos abrir Stripe. Intentá nuevamente.',
@@ -261,6 +271,7 @@ class PedidoController extends StateNotifier<EstadoPedido> {
     state = state.copyWith(ocupado: true, limpiarAvisos: true);
     try {
       final actualizado = await _comercio.reconciliarPagoPedido(pedido.id);
+      if (!mounted) return;
       state = state.copyWith(
         pedido: actualizado,
         ocupado: false,
@@ -270,8 +281,10 @@ class PedidoController extends StateNotifier<EstadoPedido> {
       );
       await _leerDevoluciones(pedido.id);
     } on ApiException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(ocupado: false, errorAccion: error.message);
     } catch (_) {
+      if (!mounted) return;
       state = state.copyWith(
         ocupado: false,
         errorAccion: 'No pudimos consultar el pago. Intentá nuevamente.',
@@ -291,8 +304,10 @@ class PedidoController extends StateNotifier<EstadoPedido> {
         razon: state.razon.trim(),
         clientRequestId: _returnRequestId!,
       );
+      if (!mounted) return;
       _returnRequestId = null;
       await _leerDevoluciones(pedido.id);
+      if (!mounted) return;
       state = state.copyWith(
         ocupado: false,
         seleccion: const {},
@@ -300,6 +315,7 @@ class PedidoController extends StateNotifier<EstadoPedido> {
         mensaje: 'Registramos tu solicitud. Te avisamos cuando la revisen.',
       );
     } on ApiException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(ocupado: false, errorAccion: error.message);
     }
   }
@@ -329,13 +345,16 @@ class PedidoController extends StateNotifier<EstadoPedido> {
         reason: reason.trim(),
         clientRequestId: clientRequestId,
       );
+      if (!mounted) return false;
       await _leerDevoluciones(pedido.id);
+      if (!mounted) return false;
       state = state.copyWith(
         ocupado: false,
         mensaje: 'Registramos el cambio y apartamos la nueva prenda.',
       );
       return true;
     } on ApiException catch (error) {
+      if (!mounted) return false;
       state = state.copyWith(ocupado: false, errorAccion: error.message);
       return false;
     }

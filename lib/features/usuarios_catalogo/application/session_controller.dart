@@ -424,6 +424,14 @@ final _sessionLinkProvider = Provider<SessionLink>((ref) => SessionLink());
 final tiendaPublicaSeleccionadaProvider =
     StateProvider<({String slug, String nombre})?>((ref) => null);
 
+/// Invalida los datos privados al cambiar de cuenta o empresa, no al renovar
+/// un token ni al actualizar la vigencia de la misma suscripción.
+final identidadSesionProvider = Provider(
+  (ref) => ref.watch(
+    sessionProvider.select((s) => (s.usuario?.id, s.usuario?.empresa?.id)),
+  ),
+);
+
 final tiendaCatalogoProvider = Provider<String?>((ref) {
   final seleccion = ref.watch(tiendaPublicaSeleccionadaProvider);
   final empresa = ref.watch(sessionProvider.select((s) => s.usuario?.empresa));

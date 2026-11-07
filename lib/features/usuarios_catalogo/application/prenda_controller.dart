@@ -115,6 +115,7 @@ class PrendaController extends StateNotifier<EstadoPrenda> {
     );
     try {
       final producto = await _catalogo.detalle(slug);
+      if (!mounted) return;
       final primera = producto.variantesDisponibles.isEmpty
           ? null
           : producto.variantesDisponibles.first;
@@ -130,6 +131,7 @@ class PrendaController extends StateNotifier<EstadoPrenda> {
       );
       await _leerFavorito(producto.id);
     } on ApiException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(cargando: false, error: error.message);
     }
   }
@@ -140,6 +142,7 @@ class PrendaController extends StateNotifier<EstadoPrenda> {
     if (!_haySesion()) return;
     try {
       final estado = await _comercio.estadoFavorito(productoId);
+      if (!mounted) return;
       state = state.copyWith(favorito: estado.isFavorite);
     } on ApiException {
       // Un favorito que no se pudo leer no rompe la prenda: queda apagado.
@@ -171,6 +174,7 @@ class PrendaController extends StateNotifier<EstadoPrenda> {
     state = state.copyWith(ocupado: true, limpiarAvisos: true);
     try {
       await _comercio.agregarUno(variante.id);
+      if (!mounted) return true;
       // El carrito vive en una pestaña conservada por StatefulShellRoute. Si
       // ya se abrió antes, su initState no vuelve a correr al regresar.
       try {
@@ -179,13 +183,16 @@ class PrendaController extends StateNotifier<EstadoPrenda> {
         // El servidor ya guardó la prenda: una recarga visual fallida no debe
         // convertir la operación confirmada en un falso rechazo.
       }
+      if (!mounted) return true;
       state = state.copyWith(
         ocupado: false,
         mensaje: 'Agregamos la prenda a tu carrito.',
       );
     } on ApiException catch (error) {
+      if (!mounted) return true;
       state = state.copyWith(ocupado: false, errorAccion: error.message);
     } catch (_) {
+      if (!mounted) return true;
       state = state.copyWith(
         ocupado: false,
         errorAccion: 'No pudimos agregar la prenda. Intentá nuevamente.',
@@ -207,6 +214,7 @@ class PrendaController extends StateNotifier<EstadoPrenda> {
       } else {
         await _comercio.guardarFavorito(producto.id);
       }
+      if (!mounted) return true;
       state = state.copyWith(
         ocupado: false,
         favorito: !marcada,
@@ -215,6 +223,7 @@ class PrendaController extends StateNotifier<EstadoPrenda> {
             : 'La guardamos en favoritos y te avisamos si vuelve el stock o baja el precio.',
       );
     } on ApiException catch (error) {
+      if (!mounted) return true;
       state = state.copyWith(ocupado: false, errorAccion: error.message);
     }
     return true;

@@ -53,18 +53,20 @@ class DireccionesApi {
     String? codigoPostal,
     String pais = 'BO',
     bool? predeterminada,
-  }) =>
-      {
-        'label': etiqueta,
-        'recipient_name': destinatario,
-        'phone': telefono,
-        'address_line': linea,
-        'city': ciudad,
-        'postal_code': (codigoPostal?.isEmpty ?? true) ? null : codigoPostal,
-        'country': pais.isEmpty ? 'BO' : pais,
-        if (predeterminada != null) 'is_default': predeterminada,
-      };
+  }) => {
+    'label': etiqueta,
+    'recipient_name': destinatario,
+    'phone': telefono,
+    'address_line': linea,
+    'city': ciudad,
+    'postal_code': (codigoPostal?.isEmpty ?? true) ? null : codigoPostal,
+    'country': pais.isEmpty ? 'BO' : pais,
+    if (predeterminada != null) 'is_default': predeterminada,
+  };
 }
 
-final Provider<DireccionesApi> direccionesApiProvider = Provider<DireccionesApi>(
-    (ref) => DireccionesApi(ref.watch(apiClientProvider)));
+final Provider<DireccionesApi> direccionesApiProvider =
+    Provider<DireccionesApi>((ref) {
+      ref.watch(identidadSesionProvider);
+      return DireccionesApi(ref.watch(apiClientProvider));
+    });

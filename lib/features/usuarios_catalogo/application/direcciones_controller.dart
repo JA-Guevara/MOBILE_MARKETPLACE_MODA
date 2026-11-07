@@ -26,14 +26,13 @@ class EstadoDirecciones {
     String? error,
     String? mensaje,
     bool limpiarAvisos = false,
-  }) =>
-      EstadoDirecciones(
-        direcciones: direcciones ?? this.direcciones,
-        cargando: cargando ?? this.cargando,
-        ocupado: ocupado ?? this.ocupado,
-        error: limpiarAvisos ? null : (error ?? this.error),
-        mensaje: limpiarAvisos ? null : (mensaje ?? this.mensaje),
-      );
+  }) => EstadoDirecciones(
+    direcciones: direcciones ?? this.direcciones,
+    cargando: cargando ?? this.cargando,
+    ocupado: ocupado ?? this.ocupado,
+    error: limpiarAvisos ? null : (error ?? this.error),
+    mensaje: limpiarAvisos ? null : (mensaje ?? this.mensaje),
+  );
 }
 
 /// ABM de direcciones del perfil (`/mi-cuenta/direcciones`).
@@ -50,8 +49,11 @@ class DireccionesController extends StateNotifier<EstadoDirecciones> {
   Future<void> cargar() async {
     state = state.copyWith(cargando: true, limpiarAvisos: true);
     try {
-      state = state.copyWith(direcciones: await _api.listar(), cargando: false);
+      final direcciones = await _api.listar();
+      if (!mounted) return;
+      state = state.copyWith(direcciones: direcciones, cargando: false);
     } on ApiException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(cargando: false, error: error.message);
     }
   }
@@ -79,7 +81,8 @@ class DireccionesController extends StateNotifier<EstadoDirecciones> {
       pais: pais,
       // La primera dirección se marca predeterminada sola: si no, la compra
       // siguiente no tiene ninguna sugerida y hay que elegirla a mano igual.
-      predeterminada: predeterminada || (id == null && state.direcciones.isEmpty),
+      predeterminada:
+          predeterminada || (id == null && state.direcciones.isEmpty),
     );
     try {
       if (id == null) {
@@ -87,13 +90,18 @@ class DireccionesController extends StateNotifier<EstadoDirecciones> {
       } else {
         await _api.actualizar(id, cuerpo);
       }
+      if (!mounted) return false;
       await cargar();
+      if (!mounted) return false;
       state = state.copyWith(
         ocupado: false,
-        mensaje: id == null ? 'Guardamos la dirección.' : 'Actualizamos la dirección.',
+        mensaje: id == null
+            ? 'Guardamos la dirección.'
+            : 'Actualizamos la dirección.',
       );
       return true;
     } on ApiException catch (error) {
+      if (!mounted) return false;
       state = state.copyWith(ocupado: false, error: error.message);
       return false;
     }
@@ -104,9 +112,12 @@ class DireccionesController extends StateNotifier<EstadoDirecciones> {
     state = state.copyWith(ocupado: true, limpiarAvisos: true);
     try {
       await _api.eliminar(direccion.id);
+      if (!mounted) return;
       await cargar();
+      if (!mounted) return;
       state = state.copyWith(ocupado: false, mensaje: 'Borramos la dirección.');
     } on ApiException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(ocupado: false, error: error.message);
     }
   }
@@ -117,15 +128,19 @@ class DireccionesController extends StateNotifier<EstadoDirecciones> {
     state = state.copyWith(ocupado: true, limpiarAvisos: true);
     try {
       await _api.actualizar(direccion.id, {'is_default': true});
+      if (!mounted) return;
       await cargar();
+      if (!mounted) return;
       state = state.copyWith(ocupado: false);
     } on ApiException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(ocupado: false, error: error.message);
     }
   }
 }
 
 final StateNotifierProvider<DireccionesController, EstadoDirecciones>
-    direccionesProvider =
+direccionesProvider =
     StateNotifierProvider<DireccionesController, EstadoDirecciones>(
-        (ref) => DireccionesController(ref.watch(direccionesApiProvider)));
+      (ref) => DireccionesController(ref.watch(direccionesApiProvider)),
+    );

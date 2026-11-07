@@ -241,8 +241,9 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
       await _acomodarSucursal(carga);
       if (!mounted || carga != _ultimaCarga) return;
 
-      _aplicarGuardadas(await futuroGuardadas);
+      final guardadas = await futuroGuardadas;
       if (!mounted || carga != _ultimaCarga) return;
+      _aplicarGuardadas(guardadas);
       state = state.copyWith(cargando: false);
     } on ApiException catch (error) {
       if (mounted && carga == _ultimaCarga) {
@@ -259,6 +260,7 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
   }
 
   Future<void> _releerCarrito() async {
+    if (!mounted) return;
     final lectura = ++_ultimaLectura;
     final carrito = await _comercio.carrito(
       branchId: state.sucursalId.isEmpty ? null : state.sucursalId,
@@ -345,9 +347,9 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
     try {
       await _releerCarrito();
     } on ApiException catch (error) {
-      state = state.copyWith(error: error.message);
+      if (mounted) state = state.copyWith(error: error.message);
     } finally {
-      state = state.copyWith(ocupado: false);
+      if (mounted) state = state.copyWith(ocupado: false);
     }
   }
 
@@ -360,9 +362,9 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
       await _comercio.cambiarCantidad(item.variantId, cantidad);
       await _releerCarrito();
     } on ApiException catch (error) {
-      state = state.copyWith(error: error.message);
+      if (mounted) state = state.copyWith(error: error.message);
     } finally {
-      state = state.copyWith(ocupado: false);
+      if (mounted) state = state.copyWith(ocupado: false);
     }
   }
 
@@ -373,9 +375,9 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
       await _comercio.quitarItem(item.variantId);
       await _releerCarrito();
     } on ApiException catch (error) {
-      state = state.copyWith(error: error.message);
+      if (mounted) state = state.copyWith(error: error.message);
     } finally {
-      state = state.copyWith(ocupado: false);
+      if (mounted) state = state.copyWith(ocupado: false);
     }
   }
 
@@ -386,9 +388,9 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
       await _comercio.vaciarCarrito();
       await _releerCarrito();
     } on ApiException catch (error) {
-      state = state.copyWith(error: error.message);
+      if (mounted) state = state.copyWith(error: error.message);
     } finally {
-      state = state.copyWith(ocupado: false);
+      if (mounted) state = state.copyWith(ocupado: false);
     }
   }
 
@@ -403,6 +405,7 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
     state = state.copyWith(ocupado: true, limpiarCupon: true);
     try {
       await _releerCarrito();
+      if (!mounted) return;
       final descuentos = state.carrito?.discounts ?? const [];
       if (state.cupon.isEmpty) {
         state = state.copyWith(mensajeCupon: 'Quitamos el cupón.');
@@ -416,9 +419,9 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
         );
       }
     } on ApiException catch (error) {
-      state = state.copyWith(errorCupon: error.message);
+      if (mounted) state = state.copyWith(errorCupon: error.message);
     } finally {
-      state = state.copyWith(ocupado: false);
+      if (mounted) state = state.copyWith(ocupado: false);
     }
   }
 
@@ -461,9 +464,11 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
         metodoPago: state.metodoPago,
         cuponCode: state.cupon.isEmpty ? null : state.cupon,
       );
+      if (!mounted) return null;
       if (state.guardarEnPerfil && state.direccionGuardadaId.isEmpty) {
         await _guardarDireccion();
       }
+      if (!mounted) return null;
       String? url;
       String? errorPago;
       if (state.metodoPago == 'stripe') {
@@ -480,6 +485,7 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
               'Stripe devolvió una respuesta inesperada. Abrí el pedido para reintentar.';
         }
       }
+      if (!mounted) return null;
       // El pedido ya vació el carrito del lado del servidor.
       state = state.copyWith(
         carrito: const Carrito(items: []),
@@ -488,9 +494,11 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
       );
       return (pedido: pedido, urlPago: url, errorPago: errorPago);
     } on ApiException catch (error) {
+      if (!mounted) return null;
       state = state.copyWith(ocupado: false, error: error.message);
       return null;
     } catch (_) {
+      if (!mounted) return null;
       state = state.copyWith(
         ocupado: false,
         error:
