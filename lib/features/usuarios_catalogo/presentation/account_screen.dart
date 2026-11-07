@@ -160,7 +160,16 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mi cuenta')),
+      appBar: AppBar(
+        title: const Text('Mi cuenta'),
+        actions: [
+          IconButton(
+            tooltip: 'Avisos y pagos',
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () => context.go('/mi-cuenta/avisos'),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(24),

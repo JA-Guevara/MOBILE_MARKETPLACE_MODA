@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile_marketplace_moda/core/notifications/app_notices.dart';
 import 'package:mobile_marketplace_moda/core/network/api_client.dart';
 import 'package:mobile_marketplace_moda/features/ventas_pagos/application/pedidos_controller.dart';
 import 'package:mobile_marketplace_moda/features/ventas_pagos/infrastructure/commerce_api.dart';
@@ -192,6 +193,26 @@ void main() {
   });
 
   group('detalle', () {
+    test(
+      'la ventana usa el resultado real del servidor al verificar',
+      () async {
+        final notices = <AppNotice>[];
+        final comercio = api();
+        servidor.estado = 'pending_payment';
+        servidor.estadoPago = 'pending';
+        servidor.metodoPago = 'stripe';
+        final control = PedidoController(comercio, onNotice: notices.add);
+        await control.cargar('o1');
+        await control.reconciliarPago();
+        expect(notices.single.title, 'Pago pendiente de confirmación');
+        servidor.estado = 'paid';
+        servidor.estadoPago = 'paid';
+        await control.reconciliarPago();
+        expect(notices.last.title, 'Pago confirmado');
+        expect(notices.last.detail, contains('150.00 BOB'));
+        control.dispose();
+      },
+    );
     test('carga el pedido y su disponibilidad de devolución', () async {
       final control = PedidoController(api());
 

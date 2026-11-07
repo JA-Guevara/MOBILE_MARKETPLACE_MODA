@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../shared/formato.dart';
+import '../../../core/notifications/app_notices.dart';
+import '../../usuarios_catalogo/application/session_controller.dart';
 import '../../../shared/widgets/estado_vista.dart';
 import '../application/carrito_controller.dart';
 import '../application/pedidos_controller.dart';
@@ -42,9 +44,36 @@ class _CarritoScreenState extends ConsumerState<CarritoScreen> {
   }
 
   Future<void> _comprar() async {
+    final identity = ref.read(identidadSesionProvider);
     final resultado = await ref.read(carritoProvider.notifier).comprar();
-    if (!mounted || resultado == null) return;
+    if (!mounted ||
+        resultado == null ||
+        identity != ref.read(identidadSesionProvider)) {
+      return;
+    }
     unawaited(ref.read(pedidosProvider.notifier).cargar());
+    if (resultado.urlPago == null || resultado.errorPago != null) {
+      final pedido = resultado.pedido;
+      ref
+          .read(appNoticesProvider.notifier)
+          .show(
+            AppNotice(
+              key: 'order:${pedido.id}:created',
+              title: pedido.paymentStatus == 'paid'
+                  ? 'Pedido confirmado'
+                  : 'Pedido creado · pago pendiente',
+              detail:
+                  '${pedido.number} · ${Formato.moneda(pedido.total)}. ${resultado.errorPago != null
+                      ? 'No pudimos abrir Stripe. El pedido se conservó para reintentar; no se confirmó un cobro.'
+                      : pedido.paymentStatus == 'paid'
+                      ? 'El servidor confirmó el pago.'
+                      : 'Crear el pedido no acredita un pago. Seguí las indicaciones del medio elegido.'}',
+              tone: pedido.paymentStatus == 'paid' ? 'success' : 'info',
+              important: true,
+              link: '/mi-cuenta/pedidos/${pedido.id}',
+            ),
+          );
+    }
 
     if (resultado.errorPago != null) {
       ScaffoldMessenger.of(context).showSnackBar(

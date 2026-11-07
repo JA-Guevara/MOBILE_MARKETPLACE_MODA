@@ -1,7 +1,7 @@
 name: mobile_marketplace_moda
 description: "Aplicación móvil de FashionStore: catálogo, vestidor virtual y compra desde el teléfono."
 publish_to: 'none'
-version: 0.1.2+3
+version: 0.1.3+4
 
 environment:
   sdk: ^3.10.0

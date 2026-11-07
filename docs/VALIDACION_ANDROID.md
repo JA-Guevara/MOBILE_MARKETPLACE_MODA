@@ -1,5 +1,13 @@
 # Validación Android · FashionStore Móvil
 
+## Avisos y pagos · APK 0.1.3 (código 4), 07/11/2026
+
+Ventanas globales con importe, referencia y acceso al detalle. Al regresar de Stripe se consulta el servidor: únicamente `paid` muestra éxito; un resultado pendiente mantiene el pedido y pide verificar antes de volver a pagar. La verificación manual y el pago de diferencias de cambios usan la misma regla. El historial está en «Mi cuenta → Avisos y pagos». Las ventanas se separan por cuenta/empresa y se cierran al cambiar de sesión. Las novedades se consultan cada 45 segundos con la aplicación abierta y al reanudarla; no son notificaciones remotas del sistema con la app cerrada.
+
+Resultados: 334 pruebas aprobadas y una externa optativa omitida, 24 pruebas focalizadas aprobadas después del último ajuste, análisis estático sin problemas y APK debug compilada. La prueba de widgets comprueba ventana, importe, cierre sin perder la pantalla y descarte al cambiar de empresa. Los ensayos de compra y webhook se hicieron con proveedor simulado y datos locales; no se hicieron cargos reales.
+
+Instalador: `entregables/mobile/FashionStore-0.1.3-debug.apk` en la carpeta compartida. SHA-256: `CEF215E9E48EE407B619D9E09669BB5A38F46D7B6A1D938B0DCB9F01012CA38D`. No había teléfono detectado por ADB al cerrar esta tanda; la versión 0.1.3 no se instaló ni se validó en el dispositivo físico. La instalación anterior permanece intacta.
+
 ## Actualización del 07/11/2026
 
 Se reprodujo y corrigió el fallo de inicio «No pudimos cargar las tiendas»: los interceptores consultaban proveedores que dependían del mismo cliente de red. La prueba con interceptores reales detectó `CircularDependencyError` antes de enviar cualquier petición. `SessionLink` separa esas dependencias y mantiene token, alcance y renovación de una sola sesión.

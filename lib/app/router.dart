@@ -22,6 +22,7 @@ import '../features/reservas_vestidor/presentation/vestidor_screen.dart';
 import '../features/reservas_vestidor/presentation/mis_reservas_screen.dart';
 import '../features/reservas_vestidor/presentation/nueva_reserva_screen.dart';
 import 'home_shell.dart';
+import '../core/notifications/notifications_screen.dart';
 import '../features/operacion_offline/presentation/catalogo_adaptable.dart';
 import '../features/operacion_offline/presentation/venta_offline_screen.dart';
 import '../features/operacion_offline/presentation/operaciones_offline_screen.dart';
@@ -44,7 +45,8 @@ import '../features/ia_reportes/presentation/reportes_ia_screen.dart';
 /// devoluciones, favoritos, direcciones, sucursales, reservas y probador.
 /// La administración se suma aparte y filtrada por permisos.
 
-final _raiz = GlobalKey<NavigatorState>();
+final appNavigatorKey = GlobalKey<NavigatorState>();
+final _raiz = appNavigatorKey;
 final _catalogo = GlobalKey<NavigatorState>();
 final _carrito = GlobalKey<NavigatorState>();
 final _reservas = GlobalKey<NavigatorState>();
@@ -243,6 +245,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: '/mi-cuenta',
                 builder: (context, estado) => const AccountScreen(),
                 routes: [
+                  GoRoute(
+                    path: 'avisos',
+                    builder: (context, estado) => const NotificationsScreen(),
+                  ),
                   GoRoute(
                     path: 'pedidos',
                     builder: (context, estado) => const PedidosScreen(),

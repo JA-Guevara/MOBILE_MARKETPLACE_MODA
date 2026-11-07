@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_exception.dart';
+import '../../../core/notifications/app_notices.dart';
+import '../../usuarios_catalogo/application/session_controller.dart';
 import '../../../shared/formato.dart';
 import '../application/commerce_providers.dart';
 import '../domain/commerce_models.dart';
@@ -23,6 +25,7 @@ class _LiquidacionCambioState extends ConsumerState<LiquidacionCambio> {
   String? message;
   Future<void> action(bool pay) async {
     if (busy) return;
+    final identity = ref.read(identidadSesionProvider);
     setState(() {
       busy = true;
       message = null;
@@ -37,7 +40,24 @@ class _LiquidacionCambioState extends ConsumerState<LiquidacionCambio> {
         }
       } else {
         final result = await api.verificarDiferencia(widget.cambio.id);
-        if (mounted) {
+        if (mounted && identity == ref.read(identidadSesionProvider)) {
+          ref
+              .read(appNoticesProvider.notifier)
+              .show(
+                AppNotice(
+                  key: 'exchange:${result.id}:${result.settlementStatus}',
+                  title: result.settlementStatus == 'paid'
+                      ? 'Pago de diferencia confirmado'
+                      : 'Diferencia pendiente de confirmación',
+                  detail: result.settlementStatus == 'paid'
+                      ? 'El servidor confirmó ${Formato.moneda(result.differenceAmount)}. La sucursal puede entregar el reemplazo.'
+                      : 'Todavía no se confirmó el cobro. Verificá antes de pagar de nuevo.',
+                  important: true,
+                  tone: result.settlementStatus == 'paid'
+                      ? 'success'
+                      : 'warning',
+                ),
+              );
           setState(
             () => message = result.settlementStatus == 'paid'
                 ? 'Pago confirmado. La sucursal puede entregar el reemplazo.'

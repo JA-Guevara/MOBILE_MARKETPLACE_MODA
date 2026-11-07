@@ -11,6 +11,8 @@ import '../features/ventas_pagos/application/commerce_providers.dart';
 import '../features/ventas_pagos/infrastructure/pending_payment_store.dart';
 import 'router.dart';
 import 'theme.dart';
+import '../core/notifications/notices_host.dart';
+import '../core/notifications/app_notices.dart';
 
 /// Raíz de la aplicación.
 class FashionStoreApp extends ConsumerStatefulWidget {
@@ -46,18 +48,44 @@ class _FashionStoreAppState extends ConsumerState<FashionStoreApp>
       return;
     }
     _verificandoPago = true;
+    final identity = ref.read(identidadSesionProvider);
     try {
       final almacen = ref.read(pendingPaymentStoreProvider);
       final id = await almacen.read();
       if (id == null || !mounted) return;
+      AppNotice? pendingNotice;
       // Stripe y su webhook pueden tardar unos segundos en quedar sincronizados.
       for (var intento = 0; intento < 3; intento++) {
         if (intento > 0) await Future<void>.delayed(const Duration(seconds: 2));
-        if (!mounted || !ref.read(sessionProvider).autenticado) return;
+        if (!mounted ||
+            !ref.read(sessionProvider).autenticado ||
+            identity != ref.read(identidadSesionProvider)) {
+          return;
+        }
         final pedido = await ref
             .read(commerceApiProvider)
             .reconciliarPagoPedido(id);
-        if (!mounted) return;
+        if (!mounted || identity != ref.read(identidadSesionProvider)) return;
+        pendingNotice = paymentNotice(
+          id: pedido.id,
+          number: pedido.number,
+          amount: pedido.total,
+          currency: pedido.currency,
+          status: pedido.paymentStatus,
+        );
+        if (pedido.paymentStatus == 'paid') {
+          ref
+              .read(appNoticesProvider.notifier)
+              .show(
+                paymentNotice(
+                  id: pedido.id,
+                  number: pedido.number,
+                  amount: pedido.total,
+                  currency: pedido.currency,
+                  status: 'paid',
+                ),
+              );
+        }
         ref.invalidate(pedidoProvider(id));
         unawaited(ref.read(pedidosProvider.notifier).cargar());
         if (pedido.paymentStatus == 'paid' ||
@@ -68,6 +96,10 @@ class _FashionStoreAppState extends ConsumerState<FashionStoreApp>
           return;
         }
       }
+      if (mounted &&
+          identity == ref.read(identidadSesionProvider) &&
+          pendingNotice != null)
+        ref.read(appNoticesProvider.notifier).show(pendingNotice);
     } catch (_) {
       // Se conserva el pedido pendiente para reintentar con conexión.
     } finally {
@@ -123,6 +155,8 @@ class _FashionStoreAppState extends ConsumerState<FashionStoreApp>
       theme: AppTheme.claro,
       darkTheme: AppTheme.oscuro,
       routerConfig: ref.watch(routerProvider),
+      builder: (context, child) =>
+          NoticesHost(child: child ?? const SizedBox.shrink()),
     );
   }
 }

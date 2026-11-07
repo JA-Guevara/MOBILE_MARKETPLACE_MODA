@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_exception.dart';
+import '../../../core/notifications/app_notices.dart';
 import '../domain/commerce_models.dart';
 import '../infrastructure/commerce_api.dart';
 import 'commerce_providers.dart';
@@ -144,7 +145,19 @@ class EstadoPedido {
 /// abrir un pedido y tener que navegar otra vez para ver su seguimiento es
 /// un paso de más.
 class PedidoController extends StateNotifier<EstadoPedido> {
-  PedidoController(this._comercio) : super(const EstadoPedido());
+  PedidoController(this._comercio, {this.onNotice})
+    : super(const EstadoPedido());
+  final void Function(AppNotice)? onNotice;
+
+  void _paymentNotice(Pedido pedido) => onNotice?.call(
+    paymentNotice(
+      id: pedido.id,
+      number: pedido.number,
+      amount: pedido.total,
+      currency: pedido.currency,
+      status: pedido.paymentStatus,
+    ),
+  );
 
   final CommerceApi _comercio;
   String? _returnRequestId;
@@ -229,6 +242,8 @@ class PedidoController extends StateNotifier<EstadoPedido> {
         ].contains(sesion.status)) {
           await cargar(pedido.id);
           if (!mounted) return null;
+          if (state.pedido?.paymentStatus == 'paid')
+            _paymentNotice(state.pedido!);
           state = state.copyWith(
             ocupado: false,
             mensaje: 'Este pedido ya está pagado.',
@@ -272,6 +287,7 @@ class PedidoController extends StateNotifier<EstadoPedido> {
     try {
       final actualizado = await _comercio.reconciliarPagoPedido(pedido.id);
       if (!mounted) return;
+      _paymentNotice(actualizado);
       state = state.copyWith(
         pedido: actualizado,
         ocupado: false,
@@ -288,6 +304,16 @@ class PedidoController extends StateNotifier<EstadoPedido> {
       state = state.copyWith(
         ocupado: false,
         errorAccion: 'No pudimos consultar el pago. Intentá nuevamente.',
+      );
+      onNotice?.call(
+        AppNotice(
+          key: 'payment:${pedido.id}:unavailable',
+          title: 'No pudimos verificar el pago',
+          detail:
+              'Conservamos el pedido. Reintentá con conexión antes de pagar nuevamente.',
+          tone: 'warning',
+          important: true,
+        ),
       );
     }
   }
@@ -363,7 +389,11 @@ class PedidoController extends StateNotifier<EstadoPedido> {
 
 final pedidoProvider = StateNotifierProvider.autoDispose
     .family<PedidoController, EstadoPedido, String>((ref, id) {
-      final controlador = PedidoController(ref.watch(commerceApiProvider));
+      final controlador = PedidoController(
+        ref.watch(commerceApiProvider),
+        onNotice: (notice) =>
+            ref.read(appNoticesProvider.notifier).show(notice),
+      );
       controlador.cargar(id);
       return controlador;
     });
