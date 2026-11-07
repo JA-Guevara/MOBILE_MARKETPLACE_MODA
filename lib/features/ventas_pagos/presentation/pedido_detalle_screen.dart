@@ -143,14 +143,18 @@ class _Seguimiento extends StatelessWidget {
         pedido.status == 'cancelled' || pedido.status == 'expired';
     final etapas = cancelado
         ? pedido.tracking.map((t) => t.status).toList()
-        : _etapas;
+        : _etapas
+              .where((etapa) => !pedido.address.pickup || etapa != 'shipped')
+              .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (final etapa in etapas)
           _Etapa(
-            etiqueta: etiquetaPedido(etapa),
+            etiqueta: pedido.address.pickup && etapa == 'delivered'
+                ? 'Retirado en sucursal'
+                : etiquetaPedido(etapa),
             nota: pedido.tracking
                 .where((t) => t.status == etapa)
                 .map((t) => t.note)
@@ -358,6 +362,16 @@ class _Entrega extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final direccion = pedido.address;
+    if (direccion.pickup) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Retiro en la sucursal de tu reserva.'),
+          if (direccion.recipient?.isNotEmpty == true)
+            Text(direccion.recipient!),
+        ],
+      );
+    }
     final lineas = [
       direccion.recipient,
       direccion.phone,

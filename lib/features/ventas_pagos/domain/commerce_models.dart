@@ -168,6 +168,7 @@ class Carrito {
 /// Dirección de entrega dentro de un pedido (web `DeliveryAddress`).
 class DireccionEntrega {
   const DireccionEntrega({
+    this.pickup = false,
     this.recipient,
     this.phone,
     this.line1,
@@ -177,6 +178,7 @@ class DireccionEntrega {
   });
 
   final String? recipient;
+  final bool pickup;
   final String? phone;
   final String? line1;
   final String? city;
@@ -185,6 +187,7 @@ class DireccionEntrega {
 
   factory DireccionEntrega.desdeJson(Map<String, dynamic> json) =>
       DireccionEntrega(
+        pickup: json['pickup'] as bool? ?? false,
         recipient: json['recipient'] as String?,
         phone: json['phone'] as String?,
         line1: json['line1'] as String?,
@@ -194,6 +197,7 @@ class DireccionEntrega {
       );
 
   Map<String, dynamic> aJson() => {
+    if (pickup) 'pickup': true,
     'recipient': recipient,
     'phone': phone,
     'line1': line1,
@@ -360,7 +364,15 @@ class Devolucion {
     this.salesChannel,
   });
 
-  String get etiquetaEstado=>kind=='exchange'?(const {'requested':'Cambio solicitado','approved':'Cambio aprobado','rejected':'Cambio rechazado','completed':'Cambio completado'}[status]??status):etiquetaDevolucion(status);
+  String get etiquetaEstado => kind == 'exchange'
+      ? (const {
+              'requested': 'Cambio solicitado',
+              'approved': 'Cambio aprobado',
+              'rejected': 'Cambio rechazado',
+              'completed': 'Cambio completado',
+            }[status] ??
+            status)
+      : etiquetaDevolucion(status);
   final String id;
   final String orderId;
   final String branchId;
