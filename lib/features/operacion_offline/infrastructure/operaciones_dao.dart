@@ -127,6 +127,8 @@ class OperacionesDao {
           'operaciones_pendientes',
           {
             'estado': estado,
+            'refund_amount': res.refundAmount,
+            'refund_status': res.refundStatus,
             'server_ref': res.serverRef,
             'server_numero': res.serverNumber,
             'conflicto_id': res.conflictId,

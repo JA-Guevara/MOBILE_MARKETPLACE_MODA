@@ -119,7 +119,10 @@ class SincronizacionController extends StateNotifier<SincronizacionEstado> {
         final operations = await dao.listarTodas(tenantId!, usuarioId!);
         final unresolved = operations
             .where(
-              (op) => op['estado'] == 'CONFLICTO' || op['estado'] == 'ENVIADA',
+              (op) =>
+                  op['estado'] == 'CONFLICTO' ||
+                  op['estado'] == 'ENVIADA' ||
+                  op['refund_status'] == 'pending',
             )
             .take(200)
             .map((op) => op['id'] as String)

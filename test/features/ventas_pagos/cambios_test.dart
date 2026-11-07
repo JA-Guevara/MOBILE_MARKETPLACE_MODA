@@ -37,6 +37,7 @@ class MockExchangesApi implements ExchangesApi {
 
   @override
   Future<ExchangeCalculationResult> calculate({
+    String? orderId,
     required String branchId,
     required List<Map<String, dynamic>> lines,
   }) async {

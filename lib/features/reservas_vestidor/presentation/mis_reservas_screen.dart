@@ -6,6 +6,7 @@ import '../../../shared/formato.dart';
 import '../../../shared/widgets/estado_vista.dart';
 import '../application/reservas_controller.dart';
 import '../domain/reserva.dart';
+import 'compra_reserva.dart';
 import '../../operacion_offline/application/reserva_offline_controller.dart';
 import '../../operacion_offline/domain/reserva_local.dart';
 
@@ -56,12 +57,26 @@ class _MisReservasScreenState extends ConsumerState<MisReservasScreen> {
     final tema = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mis reservas'), actions: [
-        ref.watch(reservasLocalesProvider).when(data: (locales) => Padding(
-          padding: const EdgeInsets.only(right: 10),
-          child: ActionChip(label: Text('En el teléfono (${locales.where((r) => r.operacion.estado == EstadoOperacion.pendiente).length})'), onPressed: () => context.push('/sin-conexion/reservas')),
-        ), loading: () => const SizedBox.shrink(), error: (_, __) => const SizedBox.shrink()),
-      ]),
+      appBar: AppBar(
+        title: const Text('Mis reservas'),
+        actions: [
+          ref
+              .watch(reservasLocalesProvider)
+              .when(
+                data: (locales) => Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: ActionChip(
+                    label: Text(
+                      'En el teléfono (${locales.where((r) => r.operacion.estado == EstadoOperacion.pendiente).length})',
+                    ),
+                    onPressed: () => context.push('/sin-conexion/reservas'),
+                  ),
+                ),
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+              ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/reservar'),
         icon: const Icon(Icons.add),
@@ -70,55 +85,65 @@ class _MisReservasScreenState extends ConsumerState<MisReservasScreen> {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: control.cargar,
-          child: Builder(builder: (context) {
-            if (estado.cargando && estado.reservas.isEmpty) {
-              return const VistaCargando(mensaje: 'Buscando tus visitas…');
-            }
-            if (estado.error != null && estado.reservas.isEmpty) {
-              return VistaError(mensaje: estado.error!, onReintentar: control.cargar);
-            }
-            if (estado.reservas.isEmpty) {
-              return VistaVacia(
-                icono: Icons.event_outlined,
-                titulo: 'Todavía no agendaste ninguna visita',
-                mensaje: 'Elegí prendas del catálogo y reservá un horario para '
-                    'probártelas en la sucursal.',
-                accionIcono: Icons.event_available_outlined,
-                accionTexto: 'Agendar una visita',
-                onAccion: () => context.push('/reservar'),
+          child: Builder(
+            builder: (context) {
+              if (estado.cargando && estado.reservas.isEmpty) {
+                return const VistaCargando(mensaje: 'Buscando tus visitas…');
+              }
+              if (estado.error != null && estado.reservas.isEmpty) {
+                return VistaError(
+                  mensaje: estado.error!,
+                  onReintentar: control.cargar,
+                );
+              }
+              if (estado.reservas.isEmpty) {
+                return VistaVacia(
+                  icono: Icons.event_outlined,
+                  titulo: 'Todavía no agendaste ninguna visita',
+                  mensaje:
+                      'Elegí prendas del catálogo y reservá un horario para '
+                      'probártelas en la sucursal.',
+                  accionIcono: Icons.event_available_outlined,
+                  accionTexto: 'Agendar una visita',
+                  onAccion: () => context.push('/reservar'),
+                );
+              }
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                children: [
+                  if (estado.mensaje != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        estado.mensaje!,
+                        style: TextStyle(color: tema.colorScheme.primary),
+                      ),
+                    ),
+                  if (estado.error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        estado.error!,
+                        style: TextStyle(color: tema.colorScheme.error),
+                      ),
+                    ),
+                  for (final reserva in estado.reservas)
+                    _TarjetaReserva(
+                      reserva: reserva,
+                      ocupado: estado.ocupado,
+                      onCancelar: () => _confirmarCancelacion(reserva),
+                    ),
+                ],
               );
-            }
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-              children: [
-                if (estado.mensaje != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(estado.mensaje!,
-                        style: TextStyle(color: tema.colorScheme.primary)),
-                  ),
-                if (estado.error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(estado.error!,
-                        style: TextStyle(color: tema.colorScheme.error)),
-                  ),
-                for (final reserva in estado.reservas)
-                  _TarjetaReserva(
-                    reserva: reserva,
-                    ocupado: estado.ocupado,
-                    onCancelar: () => _confirmarCancelacion(reserva),
-                  ),
-              ],
-            );
-          }),
+            },
+          ),
         ),
       ),
     );
   }
 }
 
-class _TarjetaReserva extends StatelessWidget {
+class _TarjetaReserva extends ConsumerWidget {
   const _TarjetaReserva({
     required this.reserva,
     required this.ocupado,
@@ -130,7 +155,7 @@ class _TarjetaReserva extends StatelessWidget {
   final VoidCallback onCancelar;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tema = Theme.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -176,8 +201,10 @@ class _TarjetaReserva extends StatelessWidget {
             ),
           for (final item in reserva.items)
             if (item.producto.isNotEmpty)
-              Text('· ${item.producto} ${item.etiqueta} × ${item.cantidad}',
-                  style: tema.textTheme.bodySmall),
+              Text(
+                '· ${item.producto} ${item.etiqueta} × ${item.cantidad}',
+                style: tema.textTheme.bodySmall,
+              ),
           if (reserva.notas?.isNotEmpty == true) ...[
             const SizedBox(height: 6),
             Text(reserva.notas!, style: tema.textTheme.bodySmall),
@@ -190,14 +217,20 @@ class _TarjetaReserva extends StatelessWidget {
                 style: tema.textTheme.bodySmall,
               ),
           ],
+          CompraReserva(
+            reserva: reserva,
+            onActualizar: () => ref.read(reservasProvider.notifier).cargar(),
+          ),
           if (reserva.sePuedeCancelar) ...[
             const SizedBox(height: 6),
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton(
                 onPressed: ocupado ? null : onCancelar,
-                child: Text('Cancelar visita',
-                    style: TextStyle(color: tema.colorScheme.error)),
+                child: Text(
+                  'Cancelar visita',
+                  style: TextStyle(color: tema.colorScheme.error),
+                ),
               ),
             ),
           ],

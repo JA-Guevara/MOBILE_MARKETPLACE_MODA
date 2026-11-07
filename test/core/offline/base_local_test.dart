@@ -140,7 +140,13 @@ void main() {
         await anterior.close();
         final migrada = BaseLocal(fabrica: databaseFactoryFfi, ruta: ruta);
         final db = await migrada.abrir();
-        expect(await db.getVersion(), 2);
+        expect(await db.getVersion(), EsquemaLocal.version);
+        expect(
+          (await db.rawQuery(
+            'PRAGMA table_info(operaciones_pendientes)',
+          )).map((row) => row['name']),
+          containsAll(['refund_amount', 'refund_status']),
+        );
         expect(
           (await db.query('operaciones_pendientes')).single['reserva_id'],
           reservaId,

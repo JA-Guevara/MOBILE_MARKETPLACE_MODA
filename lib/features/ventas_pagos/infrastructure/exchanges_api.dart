@@ -19,12 +19,13 @@ class ExchangesApi {
   }
 
   Future<ExchangeCalculationResult> calculate({
+    String? orderId,
     required String branchId,
     required List<Map<String, dynamic>> lines,
   }) async {
     final res = await _client.post<Map<String, dynamic>>(
       '/commerce/admin/exchanges/calculate',
-      body: {'branch_id': branchId, 'lines': lines},
+      body: {'branch_id': branchId, 'lines': lines,if(orderId!=null)'original_order_id':orderId},
     );
     return ExchangeCalculationResult.fromJson(res);
   }

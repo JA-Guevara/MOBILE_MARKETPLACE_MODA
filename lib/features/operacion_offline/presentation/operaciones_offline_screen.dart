@@ -5,6 +5,7 @@ import '../../usuarios_catalogo/application/session_controller.dart';
 import '../application/sincronizacion_controller.dart';
 import '../infrastructure/operaciones_dao.dart';
 import '../infrastructure/sync_api.dart';
+import 'reintegro_offline.dart';
 
 class OperacionesOfflineScreen extends ConsumerStatefulWidget {
   const OperacionesOfflineScreen({super.key});
@@ -64,7 +65,7 @@ class _OperacionesOfflineScreenState
     try {
       final response = await SyncApi(
         ref.read(apiClientProvider),
-      ).obtenerConflictos(estado: 'OPEN');
+      ).obtenerConflictos(estado: 'ALL');
       if (mounted) {
         setState(
           () => _conflictos = (response['items'] as List<dynamic>)
@@ -200,6 +201,10 @@ class _OperacionesOfflineScreenState
               ],
               if (operation['server_numero'] != null)
                 Text('Confirmación ${operation['server_numero']}'),
+              if (operation['refund_amount'] != null)
+                Text(
+                  'Reintegro ${operation['refund_status'] == 'confirmed' ? 'confirmado' : 'pendiente'}: Bs ${operation['refund_amount']}',
+                ),
               if (operation['ultimo_error'] != null)
                 Text('${operation['ultimo_error']}'),
             ],
@@ -252,7 +257,9 @@ class _OperacionesOfflineScreenState
             for (final operation in _operaciones)
               ListTile(
                 title: Text('${operation['tipo']} · ${operation['estado']}'),
-                subtitle: Text('${operation['creada_en']}'),
+                subtitle: Text(
+                  '${operation['creada_en']}${operation['refund_amount'] != null ? ' · Reintegro ${operation['refund_status'] == 'confirmed' ? 'confirmado' : 'pendiente'}: Bs ${operation['refund_amount']}' : ''}',
+                ),
                 onTap: () => _detalle(operation),
               ),
             if (_operaciones.isEmpty)
@@ -279,7 +286,20 @@ class _OperacionesOfflineScreenState
                         Text(
                           '${line['product_name']} · solicitado ${line['requested_quantity']} · disponible ${line['available_quantity']}',
                         ),
-                      if (user?.puede('sync_conflicts.resolve') == true) ...[
+                      if (conflict['refund'] is Map &&
+                          user?.puede('sync_conflicts.resolve') == true)
+                        ReintegroOffline(
+                          key: ValueKey(
+                            '${conflict['id']}-${(conflict['refund'] as Map)['status']}',
+                          ),
+                          conflictId: conflict['id'] as String,
+                          refund: Map<String, dynamic>.from(
+                            conflict['refund'] as Map,
+                          ),
+                          onActualizar: _conflictosServidor,
+                        ),
+                      if (conflict['status'] == 'OPEN' &&
+                          user?.puede('sync_conflicts.resolve') == true) ...[
                         if (conflict['type'] == 'STOCK')
                           TextButton(
                             onPressed: _ocupado

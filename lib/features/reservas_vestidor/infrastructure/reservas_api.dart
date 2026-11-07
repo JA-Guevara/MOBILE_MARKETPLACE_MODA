@@ -11,12 +11,19 @@ class ReservasApi {
 
   final ApiClient _api;
 
-  Future<Page<Reserva>> mias({int page = 1, int pageSize = 20, String? estado}) async {
-    final json = await _api.get<Map<String, dynamic>>('/reservations', query: {
-      'page': page,
-      'page_size': pageSize,
-      if (estado != null && estado.isNotEmpty) 'status': estado,
-    });
+  Future<Page<Reserva>> mias({
+    int page = 1,
+    int pageSize = 20,
+    String? estado,
+  }) async {
+    final json = await _api.get<Map<String, dynamic>>(
+      '/reservations',
+      query: {
+        'page': page,
+        'page_size': pageSize,
+        if (estado != null && estado.isNotEmpty) 'status': estado,
+      },
+    );
     return Page.from(json, Reserva.desdeJson);
   }
 
@@ -70,11 +77,33 @@ class ReservasApi {
     return Reserva.desdeJson(json);
   }
 
+  Future<Map<String, dynamic>> aPedido(
+    String id,
+    String paymentMethod,
+    Map<String, int> quantities,
+  ) {
+    return _api.post<Map<String, dynamic>>(
+      '/reservations/$id/order',
+      body: {
+        'payment_method': paymentMethod,
+        'channel': 'mobile',
+        'items': [
+          for (final entry in quantities.entries)
+            if (entry.value > 0)
+              {'variant_id': entry.key, 'quantity': entry.value},
+        ],
+      },
+    );
+  }
+
   Future<Reserva> cancelar(String id) async {
-    final json = await _api.post<Map<String, dynamic>>('/reservations/$id/cancel');
+    final json = await _api.post<Map<String, dynamic>>(
+      '/reservations/$id/cancel',
+    );
     return Reserva.desdeJson(json);
   }
 }
 
-final Provider<ReservasApi> reservasApiProvider =
-    Provider<ReservasApi>((ref) => ReservasApi(ref.watch(apiClientProvider)));
+final Provider<ReservasApi> reservasApiProvider = Provider<ReservasApi>(
+  (ref) => ReservasApi(ref.watch(apiClientProvider)),
+);

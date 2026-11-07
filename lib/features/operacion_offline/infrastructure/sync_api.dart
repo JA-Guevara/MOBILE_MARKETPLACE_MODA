@@ -84,4 +84,14 @@ class SyncApi {
         .map((item) => SyncResult.fromJson(item as Map<String, dynamic>))
         .toList();
   }
+
+  Future<Map<String, dynamic>> confirmarReintegro(
+    String id,
+    Map<String, dynamic> data,
+  ) {
+    return _api.post<Map<String, dynamic>>(
+      '/sync/conflicts/$id/refund',
+      body: data,
+    );
+  }
 }

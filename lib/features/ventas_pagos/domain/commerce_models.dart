@@ -343,6 +343,8 @@ class Devolucion {
     required this.branchId,
     required this.status,
     this.kind = 'return',
+    this.differenceAmount = 0,
+    this.settlementStatus = 'not_required',
     this.replacementSummary,
     required this.reason,
     required this.items,
@@ -358,11 +360,23 @@ class Devolucion {
     this.salesChannel,
   });
 
+  String get etiquetaEstado=>kind=='exchange'?(const {'requested':'Cambio solicitado','approved':'Cambio aprobado','rejected':'Cambio rechazado','completed':'Cambio completado'}[status]??status):etiquetaDevolucion(status);
   final String id;
   final String orderId;
   final String branchId;
   final String status;
   final String kind;
+  final double differenceAmount;
+  final String settlementStatus;
+  String get etiquetaLiquidacion =>
+      const {
+        'not_required': 'Sin diferencia',
+        'payment_pending': 'Pendiente de cobro',
+        'refund_pending': 'Pendiente de reintegro',
+        'paid': 'Diferencia pagada',
+        'refunded': 'Reintegro confirmado',
+      }[settlementStatus] ??
+      settlementStatus;
   final String? replacementSummary;
   final String reason;
   final List<ItemPedido> items;
@@ -383,6 +397,8 @@ class Devolucion {
     branchId: json['branch_id'] as String? ?? '',
     status: json['status'] as String? ?? '',
     kind: json['kind'] as String? ?? 'return',
+    differenceAmount: _monto(json['difference_amount']),
+    settlementStatus: json['settlement_status'] as String? ?? 'not_required',
     replacementSummary: _replacementSummary(json['items']),
     reason: json['reason'] as String? ?? '',
     items: (json['items'] as List<dynamic>? ?? const [])
@@ -415,14 +431,17 @@ class OpcionCambio {
     required this.size,
     required this.color,
     required this.available,
+    this.price = 0,
   });
   final String variantId;
   final String productName;
   final String size;
   final String color;
   final int available;
+  final double price;
 
   factory OpcionCambio.desdeJson(Map<String, dynamic> json) => OpcionCambio(
+    price: _monto(json['price']),
     variantId: json['variant_id'] as String,
     productName: json['product_name'] as String,
     size: json['size'] as String,
@@ -582,12 +601,14 @@ class IngresoTracking {
 class DisponibilidadDevolucion {
   const DisponibilidadDevolucion({
     required this.puedeSolicitar,
+    this.puedeCambiar,
     required this.unidades,
     required this.devoluciones,
     this.motivo,
   });
 
   final bool puedeSolicitar;
+  final bool? puedeCambiar;
   final String? motivo;
   final Map<String, int> unidades;
   final List<Devolucion> devoluciones;
@@ -595,6 +616,7 @@ class DisponibilidadDevolucion {
   factory DisponibilidadDevolucion.desdeJson(Map<String, dynamic> json) =>
       DisponibilidadDevolucion(
         puedeSolicitar: json['can_request'] as bool? ?? false,
+        puedeCambiar: json['can_exchange'] as bool?,
         motivo: json['reason'] as String?,
         unidades: _unidades(json['units']),
         devoluciones: (json['returns'] as List<dynamic>? ?? const [])
@@ -608,6 +630,7 @@ class BusquedaMostrador {
   const BusquedaMostrador({
     required this.pedido,
     required this.puedeSolicitar,
+    this.puedeCambiar,
     required this.unidades,
     required this.devoluciones,
     this.motivo,
@@ -615,6 +638,7 @@ class BusquedaMostrador {
 
   final Pedido pedido;
   final bool puedeSolicitar;
+  final bool? puedeCambiar;
   final String? motivo;
   final Map<String, int> unidades;
   final List<Devolucion> devoluciones;
@@ -625,6 +649,7 @@ class BusquedaMostrador {
           json['order'] as Map<String, dynamic>? ?? const {},
         ),
         puedeSolicitar: json['can_request'] as bool? ?? false,
+        puedeCambiar: json['can_exchange'] as bool?,
         motivo: json['reason'] as String?,
         unidades: _unidades(json['units']),
         devoluciones: (json['returns'] as List<dynamic>? ?? const [])

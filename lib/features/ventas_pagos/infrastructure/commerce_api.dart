@@ -204,6 +204,21 @@ class CommerceApi {
     return Devolucion.desdeJson(json);
   }
 
+  Future<String?> pagarDiferencia(String id) async {
+    final result = await _api.post<Map<String, dynamic>>(
+      '/commerce/returns/$id/checkout?channel=mobile',
+    );
+    return result['url'] as String?;
+  }
+
+  Future<Devolucion> verificarDiferencia(String id) async {
+    return Devolucion.desdeJson(
+      await _api.post<Map<String, dynamic>>(
+        '/commerce/returns/$id/payment-status',
+      ),
+    );
+  }
+
   Future<List<OpcionCambio>> opcionesCambio(
     String orderId,
     String variantId,

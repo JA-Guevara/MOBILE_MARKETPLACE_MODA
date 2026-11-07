@@ -26,31 +26,30 @@ class ItemReserva {
   final String color;
   final String? imagenUrl;
 
-  String get etiqueta =>
-      [talla, color].where((t) => t.isNotEmpty).join(' · ');
+  String get etiqueta => [talla, color].where((t) => t.isNotEmpty).join(' · ');
 
   Map<String, dynamic> aJson() => {
-        'variant_id': variantId,
-        'quantity': cantidad,
-      };
+    'variant_id': variantId,
+    'quantity': cantidad,
+  };
 
   factory ItemReserva.desdeJson(Map<String, dynamic> json) => ItemReserva(
-        variantId: '${json['variant_id']}',
-        cantidad: (json['quantity'] as num?)?.toInt() ?? 1,
-        producto: json['product'] as String? ?? json['name'] as String? ?? '',
-        talla: json['size'] as String? ?? '',
-        color: json['color'] as String? ?? '',
-        imagenUrl: json['image_url'] as String?,
-      );
+    variantId: '${json['variant_id']}',
+    cantidad: (json['quantity'] as num?)?.toInt() ?? 1,
+    producto: json['product'] as String? ?? json['name'] as String? ?? '',
+    talla: json['size'] as String? ?? '',
+    color: json['color'] as String? ?? '',
+    imagenUrl: json['image_url'] as String?,
+  );
 
   ItemReserva copyWith({int? cantidad}) => ItemReserva(
-        variantId: variantId,
-        cantidad: cantidad ?? this.cantidad,
-        producto: producto,
-        talla: talla,
-        color: color,
-        imagenUrl: imagenUrl,
-      );
+    variantId: variantId,
+    cantidad: cantidad ?? this.cantidad,
+    producto: producto,
+    talla: talla,
+    color: color,
+    imagenUrl: imagenUrl,
+  );
 }
 
 /// Una etapa del seguimiento de la reserva.
@@ -64,10 +63,10 @@ class PasoReserva {
   String get etiqueta => etiquetaReserva(estado);
 
   factory PasoReserva.desdeJson(Map<String, dynamic> json) => PasoReserva(
-        estado: json['status'] as String? ?? '',
-        nota: json['note'] as String? ?? '',
-        fecha: json['date'] as String? ?? json['at'] as String? ?? '',
-      );
+    estado: json['status'] as String? ?? '',
+    nota: json['note'] as String? ?? '',
+    fecha: json['date'] as String? ?? json['at'] as String? ?? '',
+  );
 }
 
 /// Visita agendada para probarse prendas en una sucursal (RF09–RF12).
@@ -83,6 +82,9 @@ class Reserva {
     this.sucursal,
     this.creadaEn = '',
     this.inventarioApartado = false,
+    this.pedidoId,
+    this.pedidoNumero,
+    this.estadoPago,
   });
 
   final String id;
@@ -98,6 +100,7 @@ class Reserva {
   final String? sucursal;
   final String creadaEn;
   final bool inventarioApartado;
+  final String? pedidoId, pedidoNumero, estadoPago;
 
   String get etiquetaEstado => etiquetaReserva(estado);
 
@@ -108,23 +111,26 @@ class Reserva {
   int get unidades => items.fold(0, (total, item) => total + item.cantidad);
 
   factory Reserva.desdeJson(Map<String, dynamic> json) => Reserva(
-        id: '${json['id']}',
-        branchId: '${json['branch_id']}',
-        estado: json['status'] as String? ?? '',
-        agendadaPara: '${json['scheduled_at'] ?? ''}',
-        items: (json['items'] as List<dynamic>? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .map(ItemReserva.desdeJson)
-            .toList(),
-        notas: json['notes'] as String?,
-        tracking: (json['tracking'] as List<dynamic>? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .map(PasoReserva.desdeJson)
-            .toList(),
-        sucursal: json['branch_name'] as String?,
-        creadaEn: '${json['created_at'] ?? ''}',
-        inventarioApartado: json['inventory_held'] as bool? ?? false,
-      );
+    pedidoId: json['order_id'] as String?,
+    pedidoNumero: json['order_number'] as String?,
+    estadoPago: json['payment_status'] as String?,
+    id: '${json['id']}',
+    branchId: '${json['branch_id']}',
+    estado: json['status'] as String? ?? '',
+    agendadaPara: '${json['scheduled_at'] ?? ''}',
+    items: (json['items'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(ItemReserva.desdeJson)
+        .toList(),
+    notas: json['notes'] as String?,
+    tracking: (json['tracking'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(PasoReserva.desdeJson)
+        .toList(),
+    sucursal: json['branch_name'] as String?,
+    creadaEn: '${json['created_at'] ?? ''}',
+    inventarioApartado: json['inventory_held'] as bool? ?? false,
+  );
 }
 
 /// Respuesta de `/reservations/availability` para una variante.
@@ -170,7 +176,8 @@ const Map<String, String> _reservas = {
   'pending': 'Pendiente de confirmar',
   'confirmed': 'Confirmada',
   'ready': 'Lista para tu visita',
-  'attended': 'Atendida',
+  'attended': 'Visita atendida',
+  'converted': 'Convertida a pedido',
   'cancelled': 'Cancelada',
   'expired': 'Vencida',
 };
@@ -179,11 +186,11 @@ String etiquetaReserva(String valor) => _reservas[valor] ?? valor;
 
 /// Escala de color de la web (`ok`, `aviso`, `mal`).
 String colorDeEstadoReserva(String estado) => switch (estado) {
-      'attended' || 'ready' => 'ok',
-      'cancelled' || 'expired' => 'mal',
-      'pending' => 'aviso',
-      _ => '',
-    };
+  'attended' || 'ready' => 'ok',
+  'cancelled' || 'expired' => 'mal',
+  'pending' => 'aviso',
+  _ => '',
+};
 
 /// Límites que impone el backend al crear una reserva (RF09).
 const int maxVariantesPorReserva = 20;

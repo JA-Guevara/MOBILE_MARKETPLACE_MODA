@@ -13,6 +13,7 @@ import '../infrastructure/pending_payment_store.dart';
 import 'pedidos_screen.dart'
     show colorDeEstadoPedido, colorDeEstadoPago, colorDeEstadoDevolucion;
 import 'stripe_checkout_launcher.dart';
+import 'liquidacion_cambio.dart';
 
 /// Detalle de un pedido (`/mi-cuenta/pedidos/:id`).
 ///
@@ -407,7 +408,7 @@ class _Devoluciones extends StatelessWidget {
               child: Row(
                 children: [
                   ChipEstado(
-                    etiqueta: etiquetaDevolucion(devolucion.status),
+                    etiqueta: devolucion.etiquetaEstado,
                     exportacion: colorDeEstadoDevolucion(devolucion.status),
                     compacto: true,
                   ),
@@ -433,13 +434,14 @@ class _Devoluciones extends StatelessWidget {
           const SizedBox(height: 6),
         ],
 
-        if (!estado.sePuedeDevolver)
-          Text(
-            disponibilidad?.motivo ??
-                'Vas a poder pedir una devolución cuando el pedido esté entregado.',
-            style: tema.textTheme.bodySmall,
-          )
-        else ...[
+        if (disponibilidad != null)
+          for (final cambio in disponibilidad.devoluciones)
+            if (cambio.kind == 'exchange')
+              LiquidacionCambio(
+                cambio: cambio,
+                onActualizar: () => control.cargar(pedido.id),
+              ),
+        if (estado.sePuedeCambiar)
           OutlinedButton(
             onPressed: estado.ocupado
                 ? null
@@ -451,6 +453,13 @@ class _Devoluciones extends StatelessWidget {
                   ),
             child: const Text('Solicitar cambio de prenda o talla'),
           ),
+        if (!estado.sePuedeDevolver)
+          Text(
+            disponibilidad?.motivo ??
+                'Vas a poder pedir una devolución cuando el pedido esté entregado.',
+            style: tema.textTheme.bodySmall,
+          )
+        else ...[
           Text(
             'Elegí cuántas unidades querés devolver y contanos por qué.',
             style: tema.textTheme.bodySmall,
@@ -604,7 +613,7 @@ class _FormularioCambioState extends State<_FormularioCambio> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'La nueva prenda se aparta ahora. La original vuelve al stock cuando la recibamos.',
+                'La nueva prenda se aparta ahora. Si cambia el precio, se registra el cobro o reintegro pendiente. La sucursal confirma el dinero con conexión y recibe la original antes de completar el cambio.',
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
@@ -637,7 +646,7 @@ class _FormularioCambioState extends State<_FormularioCambio> {
                       DropdownMenuItem(
                         value: option.variantId,
                         child: Text(
-                          '${option.productName} · ${option.size} · ${option.color} (${option.available})',
+                          '${option.productName} · ${option.size} · ${option.color} · ${option.price} BOB (${option.available})',
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),

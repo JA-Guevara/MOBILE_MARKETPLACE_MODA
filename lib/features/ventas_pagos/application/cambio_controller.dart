@@ -1,3 +1,5 @@
+import 'dart:convert';
+import '../infrastructure/commerce_api.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_exception.dart';
 import '../domain/cambio.dart';
@@ -35,27 +37,33 @@ class EstadoCambio {
     String? error,
     bool limpiarError = false,
     bool limpiarSeleccion = false,
-  }) =>
-      EstadoCambio(
-        buscando: buscando ?? this.buscando,
-        calculando: calculando ?? this.calculando,
-        ejecutando: ejecutando ?? this.ejecutando,
-        orden: orden ?? this.orden,
-        prendaDevuelta: limpiarSeleccion ? null : (prendaDevuelta ?? this.prendaDevuelta),
-        calculo: limpiarSeleccion ? null : (calculo ?? this.calculo),
-        cambioRealizado: cambioRealizado ?? this.cambioRealizado,
-        error: limpiarError ? null : (error ?? this.error),
-      );
+  }) => EstadoCambio(
+    buscando: buscando ?? this.buscando,
+    calculando: calculando ?? this.calculando,
+    ejecutando: ejecutando ?? this.ejecutando,
+    orden: orden ?? this.orden,
+    prendaDevuelta: limpiarSeleccion
+        ? null
+        : (prendaDevuelta ?? this.prendaDevuelta),
+    calculo: limpiarSeleccion ? null : (calculo ?? this.calculo),
+    cambioRealizado: cambioRealizado ?? this.cambioRealizado,
+    error: limpiarError ? null : (error ?? this.error),
+  );
 }
 
 class CambioController extends StateNotifier<EstadoCambio> {
   CambioController(this._api) : super(const EstadoCambio());
 
   final ExchangesApi _api;
+  String? _attemptId, _attemptFingerprint;
 
   Future<void> buscarOrden(String query) async {
     if (query.trim().isEmpty) return;
-    state = state.copyWith(buscando: true, limpiarError: true, limpiarSeleccion: true);
+    state = state.copyWith(
+      buscando: true,
+      limpiarError: true,
+      limpiarSeleccion: true,
+    );
     try {
       final ord = await _api.lookupOrder(query);
       state = state.copyWith(buscando: false, orden: ord);
@@ -82,6 +90,7 @@ class CambioController extends StateNotifier<EstadoCambio> {
     state = state.copyWith(calculando: true, limpiarError: true);
     try {
       final res = await _api.calculate(
+        orderId:state.orden?.orderId,
         branchId: branchId,
         lines: [
           {
@@ -91,7 +100,7 @@ class CambioController extends StateNotifier<EstadoCambio> {
             'new_variant_id': newVariantId,
             'delivered_quantity': deliveredQuantity,
             'new_unit_price': newUnitPrice.toStringAsFixed(2),
-          }
+          },
         ],
       );
       state = state.copyWith(calculando: false, calculo: res);
@@ -117,11 +126,31 @@ class CambioController extends StateNotifier<EstadoCambio> {
   }) async {
     state = state.copyWith(ejecutando: true, limpiarError: true);
     try {
+      final fingerprint = jsonEncode([
+        originalOrderId,
+        branchId,
+        originalVariantId,
+        newVariantId,
+        returnedQuantity,
+        deliveredQuantity,
+        paymentMethod,
+        cashReceived,
+        notes,
+      ]);
+      if (_attemptFingerprint != fingerprint) {
+        _attemptFingerprint = fingerprint;
+        _attemptId = CommerceApi.nuevaClaveSolicitud();
+      }
+      final difference = state.calculo?.differenceAmount ?? 0;
+      final received = difference > 0 ? (cashReceived ?? 0) : 0.0;
       final detail = await _api.executeExchange({
+        'client_request_id': _attemptId,
+        'cash_returned': (difference < 0 ? -difference : received - difference)
+            .toStringAsFixed(2),
         'original_order_id': originalOrderId,
         'branch_id': branchId,
         'payment_method': paymentMethod,
-        if (cashReceived != null) 'cash_received': cashReceived.toStringAsFixed(2),
+        'cash_received': received.toStringAsFixed(2),
         if (notes != null) 'notes': notes,
         'lines': [
           {
@@ -131,7 +160,7 @@ class CambioController extends StateNotifier<EstadoCambio> {
             'new_variant_id': newVariantId,
             'delivered_quantity': deliveredQuantity,
             'new_unit_price': newUnitPrice.toStringAsFixed(2),
-          }
+          },
         ],
       });
       state = state.copyWith(ejecutando: false, cambioRealizado: detail);

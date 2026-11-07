@@ -49,6 +49,8 @@ class SyncResult {
     this.conflictType,
     this.reasonCode,
     this.replay = false,
+    this.refundAmount,
+    this.refundStatus,
   });
 
   final String clientRequestId;
@@ -60,6 +62,7 @@ class SyncResult {
   final String? conflictType;
   final String? reasonCode;
   final bool replay;
+  final String? refundAmount, refundStatus;
 
   bool get isConfirmed => status == 'CONFIRMED';
   bool get isConflict => status == 'CONFLICT';
@@ -75,6 +78,8 @@ class SyncResult {
     conflictType: json['conflict_type'] as String?,
     reasonCode: json['reason_code'] as String?,
     replay: json['replay'] as bool? ?? false,
+    refundAmount: json['refund_amount'] as String?,
+    refundStatus: json['refund_status'] as String?,
   );
 }
 

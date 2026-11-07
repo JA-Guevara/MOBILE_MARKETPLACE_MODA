@@ -3,7 +3,7 @@ import 'package:sqflite/sqflite.dart';
 
 /// Esquema compartido con la PWA; los tokens nunca se guardan en esta base.
 class EsquemaLocal {
-  static const version = 2;
+  static const version = 3;
   static const tablas = <String>[
     '''CREATE TABLE productos (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, slug TEXT NOT NULL, categoria TEXT, marca TEXT, precio_base REAL NOT NULL, precio_oferta REAL, imagen_url TEXT, destacado INTEGER NOT NULL, actualizado_en TEXT)''',
     '''CREATE TABLE variantes (id TEXT PRIMARY KEY, producto_id TEXT NOT NULL, sku TEXT NOT NULL, talla TEXT NOT NULL, color TEXT NOT NULL, color_hex TEXT, precio REAL, activa INTEGER NOT NULL)''',
@@ -21,7 +21,7 @@ class EsquemaLocal {
   static const _items =
       '''CREATE TABLE venta_items_locales (venta_id TEXT NOT NULL REFERENCES ventas_locales(id), variante_id TEXT NOT NULL, producto_nombre TEXT NOT NULL, variante_desc TEXT NOT NULL, cantidad INTEGER NOT NULL CHECK(cantidad > 0), precio_unitario REAL NOT NULL, precio_regular REAL NOT NULL, total_linea REAL NOT NULL, PRIMARY KEY(venta_id, variante_id))''';
   static const _operaciones =
-      '''CREATE TABLE operaciones_pendientes (id TEXT PRIMARY KEY, tipo TEXT NOT NULL, estado TEXT NOT NULL, tenant_id TEXT NOT NULL, sucursal_id TEXT NOT NULL, usuario_id TEXT NOT NULL, dispositivo_id TEXT NOT NULL, payload TEXT, venta_id TEXT REFERENCES ventas_locales(id), reserva_id TEXT REFERENCES reservas_locales(id), intentos INTEGER NOT NULL DEFAULT 0, ultimo_error TEXT, creada_en TEXT NOT NULL, actualizada_en TEXT NOT NULL, server_ref TEXT, server_numero TEXT, conflicto_id TEXT, motivo_codigo TEXT, proximo_intento_en TEXT, CHECK(venta_id IS NULL OR reserva_id IS NULL))''';
+      '''CREATE TABLE operaciones_pendientes (id TEXT PRIMARY KEY, tipo TEXT NOT NULL, estado TEXT NOT NULL, tenant_id TEXT NOT NULL, sucursal_id TEXT NOT NULL, usuario_id TEXT NOT NULL, dispositivo_id TEXT NOT NULL, payload TEXT, venta_id TEXT REFERENCES ventas_locales(id), reserva_id TEXT REFERENCES reservas_locales(id), intentos INTEGER NOT NULL DEFAULT 0, ultimo_error TEXT, creada_en TEXT NOT NULL, actualizada_en TEXT NOT NULL, server_ref TEXT, server_numero TEXT, conflicto_id TEXT, motivo_codigo TEXT, proximo_intento_en TEXT, refund_amount TEXT, refund_status TEXT, CHECK(venta_id IS NULL OR reserva_id IS NULL))''';
 
   static Future<void> crear(Database db, int version) async {
     final batch = db.batch();
@@ -41,6 +41,18 @@ class EsquemaLocal {
   // explícita al reparar una v2 incompleta, sin abrir transacciones anidadas.
   static Future<void> migrar(DatabaseExecutor db, int de, int a) async {
     if (de < 2 && a >= 2) await _asegurarV2(db);
+    if (de < 3 && a >= 3) await _asegurarReintegros(db);
+  }
+
+  static Future<void> _asegurarReintegros(DatabaseExecutor db) async {
+    final columns = await _columnas(db, 'operaciones_pendientes');
+    for (final name in ['refund_amount', 'refund_status']) {
+      if (!columns.contains(name)) {
+        await db.execute(
+          'ALTER TABLE operaciones_pendientes ADD COLUMN $name TEXT',
+        );
+      }
+    }
   }
 
   static Future<Set<String>> _columnas(
@@ -70,9 +82,11 @@ class EsquemaLocal {
         fkVentas.isNotEmpty &&
         fkItems.isNotEmpty &&
         fkOperaciones.length == 2) {
+      await _asegurarReintegros(db);
       return;
     }
     await db.transaction(_asegurarV2);
+    await _asegurarReintegros(db);
   }
 
   static Future<void> _asegurarV2(DatabaseExecutor db) async {

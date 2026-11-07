@@ -98,6 +98,7 @@ class EstadoPedido {
       pedido!.status == 'pending_payment';
 
   bool get sePuedeDevolver => devoluciones?.puedeSolicitar ?? false;
+  bool get sePuedeCambiar => devoluciones?.puedeCambiar ?? sePuedeDevolver;
 
   int get unidadesElegidas =>
       seleccion.values.fold(0, (total, unidades) => total + unidades);
@@ -305,7 +306,7 @@ class PedidoController extends StateNotifier<EstadoPedido> {
 
   Future<List<OpcionCambio>> opcionesCambio(String variantId) async {
     final pedido = state.pedido;
-    if (pedido == null || !state.sePuedeDevolver) return const [];
+    if (pedido == null || !state.sePuedeCambiar) return const [];
     return _comercio.opcionesCambio(pedido.id, variantId);
   }
 
@@ -317,7 +318,7 @@ class PedidoController extends StateNotifier<EstadoPedido> {
     required String clientRequestId,
   }) async {
     final pedido = state.pedido;
-    if (pedido == null || !state.sePuedeDevolver || state.ocupado) return false;
+    if (pedido == null || !state.sePuedeCambiar || state.ocupado) return false;
     state = state.copyWith(ocupado: true, limpiarAvisos: true);
     try {
       await _comercio.solicitarCambio(
