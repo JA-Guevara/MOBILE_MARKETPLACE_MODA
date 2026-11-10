@@ -98,8 +98,9 @@ class _FashionStoreAppState extends ConsumerState<FashionStoreApp>
       }
       if (mounted &&
           identity == ref.read(identidadSesionProvider) &&
-          pendingNotice != null)
+          pendingNotice != null) {
         ref.read(appNoticesProvider.notifier).show(pendingNotice);
+      }
     } catch (_) {
       // Se conserva el pedido pendiente para reintentar con conexión.
     } finally {

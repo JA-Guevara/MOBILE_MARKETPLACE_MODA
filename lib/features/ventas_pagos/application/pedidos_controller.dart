@@ -242,8 +242,9 @@ class PedidoController extends StateNotifier<EstadoPedido> {
         ].contains(sesion.status)) {
           await cargar(pedido.id);
           if (!mounted) return null;
-          if (state.pedido?.paymentStatus == 'paid')
+          if (state.pedido?.paymentStatus == 'paid') {
             _paymentNotice(state.pedido!);
+          }
           state = state.copyWith(
             ocupado: false,
             mensaje: 'Este pedido ya está pagado.',
