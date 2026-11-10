@@ -24,7 +24,7 @@ class PrepararOfflineScreen extends ConsumerWidget {
     final sync = usuario?.puede('sync.write') == true
         ? ref.watch(sincronizacionControllerProvider)
         : null;
-    final online = ref.watch(conectividadProvider).asData?.value == true;
+    final online = ref.watch(conectividadProvider).valueOrNull ?? true;
     final control = ref.read(catalogoOfflineProvider.notifier);
     return Scaffold(
       appBar: AppBar(

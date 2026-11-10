@@ -448,6 +448,55 @@ class _Devoluciones extends StatelessWidget {
           const SizedBox(height: 6),
         ],
 
+        Card(
+          elevation: 0,
+          color: tema.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: tema.colorScheme.outlineVariant),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.verified_user_outlined,
+                      color: tema.colorScheme.primary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Garantía de Cambios y Devoluciones (15 días)',
+                        style: tema.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Estado del pedido: . '
+                  '',
+                  style: tema.textTheme.bodySmall,
+                ),
+                if (estado.sePuedeConfirmarEntrega) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.tonalIcon(
+                    onPressed: estado.ocupado ? null : () => control.confirmarEntrega(),
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('Confirmar recepción de mi prenda'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         if (disponibilidad != null)
           for (final cambio in disponibilidad.devoluciones)
             if (cambio.kind == 'exchange')
@@ -455,8 +504,8 @@ class _Devoluciones extends StatelessWidget {
                 cambio: cambio,
                 onActualizar: () => control.cargar(pedido.id),
               ),
-        if (estado.sePuedeCambiar)
-          OutlinedButton(
+        if (estado.sePuedeCambiar) ...[
+          FilledButton.icon(
             onPressed: estado.ocupado
                 ? null
                 : () => showModalBottomSheet<void>(
@@ -465,8 +514,11 @@ class _Devoluciones extends StatelessWidget {
                     builder: (context) =>
                         _FormularioCambio(estado: estado, control: control),
                   ),
-            child: const Text('Solicitar cambio de prenda o talla'),
+            icon: const Icon(Icons.swap_horiz),
+            label: const Text('Solicitar cambio de prenda o talla'),
           ),
+          const SizedBox(height: 12),
+        ],
         if (!estado.sePuedeDevolver)
           Text(
             disponibilidad?.motivo ??

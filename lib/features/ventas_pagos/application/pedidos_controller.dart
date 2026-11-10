@@ -98,6 +98,13 @@ class EstadoPedido {
       pedido!.paymentStatus != 'paid' &&
       pedido!.status == 'pending_payment';
 
+  bool get sePuedeConfirmarEntrega =>
+      pedido != null &&
+      pedido!.paymentStatus == 'paid' &&
+      pedido!.status != 'delivered' &&
+      pedido!.status != 'cancelled' &&
+      pedido!.status != 'expired';
+
   bool get sePuedeDevolver => devoluciones?.puedeSolicitar ?? false;
   bool get sePuedeCambiar => devoluciones?.puedeCambiar ?? sePuedeDevolver;
 
@@ -218,6 +225,31 @@ class PedidoController extends StateNotifier<EstadoPedido> {
     } on ApiException catch (error) {
       if (!mounted) return;
       state = state.copyWith(ocupado: false, errorAccion: error.message);
+    }
+  }
+
+  Future<bool> confirmarEntrega() async {
+    final pedido = state.pedido;
+    if (pedido == null || state.ocupado) return false;
+    state = state.copyWith(ocupado: true, limpiarAvisos: true);
+    try {
+      await _comercio.confirmarEntrega(pedido.id);
+      if (!mounted) return false;
+      await cargar(pedido.id);
+      if (!mounted) return false;
+      state = state.copyWith(
+        ocupado: false,
+        mensaje: '¡Entrega confirmada! Tu garantía de cambio de 15 días está activa.',
+      );
+      return true;
+    } on ApiException catch (error) {
+      if (!mounted) return false;
+      state = state.copyWith(ocupado: false, errorAccion: error.message);
+      return false;
+    } catch (e) {
+      if (!mounted) return false;
+      state = state.copyWith(ocupado: false, errorAccion: 'No se pudo confirmar la entrega: ');
+      return false;
     }
   }
 

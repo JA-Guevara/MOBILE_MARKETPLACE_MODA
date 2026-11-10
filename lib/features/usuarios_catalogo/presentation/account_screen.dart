@@ -314,6 +314,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
               onTap: () => context.go('/mi-cuenta/pedidos'),
             ),
             _Acceso(
+              icono: Icons.swap_horiz_outlined,
+              titulo: 'Cambios y devoluciones',
+              detalle: 'Garantía de 15 días en tus compras',
+              onTap: () => context.go('/mi-cuenta/pedidos'),
+            ),
+            _Acceso(
               icono: Icons.event_outlined,
               titulo: 'Mis reservas',
               detalle: 'Prueba en sucursal',

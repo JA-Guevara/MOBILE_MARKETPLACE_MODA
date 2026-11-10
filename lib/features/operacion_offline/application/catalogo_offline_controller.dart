@@ -52,13 +52,17 @@ class EstadoCatalogoOffline {
 }
 
 bool puedeOperarOffline(Usuario? usuario, {DateTime? ahora}) {
-  final s = usuario?.suscripcion;
-  final fin = DateTime.tryParse(s?.fin ?? '');
+  if (usuario == null) return false;
+  if (usuario.empresa != null && usuario.empresa!.estado != 'ACTIVA') return false;
+  final s = usuario.suscripcion;
+  if (s == null) {
+    return true;
+  }
+  final fin = DateTime.tryParse(s.fin ?? '');
   final hoy = ahora ?? DateTime.now();
   final fecha = DateTime(hoy.year, hoy.month, hoy.day);
-  return usuario?.empresa?.estado == 'ACTIVA' &&
-      s?.estado == 'ACTIVA' &&
-      s?.permite('offline') == true &&
+  return (s.estado.isEmpty || s.estado == 'ACTIVA') &&
+      (s.permite('offline') || s.funciones.isEmpty) &&
       (fin == null || !DateTime(fin.year, fin.month, fin.day).isBefore(fecha));
 }
 

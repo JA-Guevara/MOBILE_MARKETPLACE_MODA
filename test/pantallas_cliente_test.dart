@@ -275,7 +275,8 @@ void main() {
       sinExcepciones(tester);
       expect(find.text('Ana Vargas'), findsOneWidget);
       expect(find.text('Mis pedidos'), findsOneWidget);
-      expect(find.text('Mis favoritos'), findsOneWidget);
+      expect(find.text('Cambios y devoluciones'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Mis direcciones'), 100);
       expect(find.text('Mis direcciones'), findsOneWidget);
     });
   });

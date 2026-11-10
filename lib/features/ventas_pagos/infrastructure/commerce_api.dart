@@ -163,6 +163,14 @@ class CommerceApi {
     );
   }
 
+  Future<Pedido> confirmarEntrega(String id) async {
+    final json = await _api.post<Map<String, dynamic>>(
+      '/commerce/orders//confirm-delivery',
+      body: const <String, dynamic>{},
+    );
+    return Pedido.desdeJson(json);
+  }
+
   /// Consulta Stripe desde el servidor y devuelve el pedido con su estado
   /// vigente. El navegador nunca acredita un pago por sí mismo.
   Future<Pedido> reconciliarPagoPedido(String id) async {
