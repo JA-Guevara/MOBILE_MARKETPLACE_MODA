@@ -35,11 +35,21 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
       final control = ref.read(catalogoOfflineProvider.notifier);
       await control.iniciar();
       final id = ref.read(catalogoOfflineProvider).sucursalId;
-      final cajas = id == null ? <CajaLocal>[] : await control.dao.cajas(id);
+      var cajas = id == null ? <CajaLocal>[] : await control.dao.cajas(id);
+      if (cajas.isEmpty && id != null) {
+        cajas = [
+          CajaLocal(
+            id: 'caja-principal-$id',
+            sucursalId: id,
+            nombre: 'Caja 1 (Principal)',
+            codigo: 'CAJA-01',
+          ),
+        ];
+      }
       if (mounted) {
         setState(() {
           _cajas = cajas;
-          _caja = cajas.firstOrNull?.id;
+          _caja = _caja ?? cajas.firstOrNull?.id;
         });
       }
     } catch (error) {

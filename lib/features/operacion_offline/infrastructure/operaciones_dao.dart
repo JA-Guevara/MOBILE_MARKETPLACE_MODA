@@ -157,6 +157,19 @@ class OperacionesDao {
             where: 'id=?',
             whereArgs: [operation['venta_id']],
           );
+          if (res.isRejected) {
+            final items = await txn.query(
+              'venta_items_locales',
+              where: 'venta_id=?',
+              whereArgs: [operation['venta_id']],
+            );
+            for (final it in items) {
+              await txn.rawUpdate(
+                'UPDATE existencias SET cantidad = cantidad + ? WHERE variante_id = ? AND sucursal_id = ?',
+                [it['cantidad'], it['variante_id'], operation['sucursal_id']],
+              );
+            }
+          }
         }
         final reservaId =
             operation['reserva_id'] ??
@@ -174,6 +187,19 @@ class OperacionesDao {
             where: 'id=?',
             whereArgs: [reservaId],
           );
+          if (res.isRejected) {
+            final items = await txn.query(
+              'reserva_items_locales',
+              where: 'reserva_id=?',
+              whereArgs: [reservaId],
+            );
+            for (final it in items) {
+              await txn.rawUpdate(
+                'UPDATE existencias SET cantidad = cantidad + ? WHERE variante_id = ? AND sucursal_id = ?',
+                [it['cantidad'], it['variante_id'], operation['sucursal_id']],
+              );
+            }
+          }
         }
       }
     });
@@ -193,6 +219,73 @@ class OperacionesDao {
           whereArgs: [id],
         );
       }
+    });
+  }
+
+  /// CU-19: Anula una operación local y repone sus existencias al inventario local.
+  Future<void> reponerYAnularOperacion(String id, {String? motivo}) async {
+    final db = await base.abrir();
+    await db.transaction((txn) async {
+      final rows = await txn.query(
+        'operaciones_pendientes',
+        where: 'id=?',
+        whereArgs: [id],
+      );
+      if (rows.isEmpty) return;
+      final op = rows.single;
+      final sucursalId = op['sucursal_id'] as String?;
+      if (op['venta_id'] != null && sucursalId != null) {
+        final items = await txn.query(
+          'venta_items_locales',
+          where: 'venta_id=?',
+          whereArgs: [op['venta_id']],
+        );
+        for (final it in items) {
+          await txn.rawUpdate(
+            'UPDATE existencias SET cantidad = cantidad + ? WHERE variante_id = ? AND sucursal_id = ?',
+            [it['cantidad'], it['variante_id'], sucursalId],
+          );
+        }
+        await txn.update(
+          'ventas_locales',
+          {'estado': 'ANULADA_LOCAL'},
+          where: 'id=?',
+          whereArgs: [op['venta_id']],
+        );
+      }
+      final reservaId =
+          op['reserva_id'] ?? (op['tipo'] == 'RESERVA' ? op['id'] : null);
+      if (reservaId != null && sucursalId != null) {
+        final items = await txn.query(
+          'reserva_items_locales',
+          where: 'reserva_id=?',
+          whereArgs: [reservaId],
+        );
+        for (final it in items) {
+          await txn.rawUpdate(
+            'UPDATE existencias SET cantidad = cantidad + ? WHERE variante_id = ? AND sucursal_id = ?',
+            [it['cantidad'], it['variante_id'], sucursalId],
+          );
+        }
+        await txn.update(
+          'reservas_locales',
+          {'estado': 'ANULADA_LOCAL'},
+          where: 'id=?',
+          whereArgs: [reservaId],
+        );
+      }
+      await txn.update(
+        'operaciones_pendientes',
+        {
+          'estado': 'ANULADA',
+          'ultimo_error':
+              motivo ??
+              'Operación anulada localmente; existencias repuestas al inventario.',
+          'actualizada_en': DateTime.now().toUtc().toIso8601String(),
+        },
+        where: 'id=?',
+        whereArgs: [id],
+      );
     });
   }
 

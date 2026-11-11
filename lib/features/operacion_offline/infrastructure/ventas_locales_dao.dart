@@ -18,12 +18,13 @@ class VentasLocalesDao {
     final fin = DateTime.tryParse(subscription?.fin ?? '');
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    if (usuario.empresa?.estado != 'ACTIVA' ||
-        !usuario.puede('commerce.write') ||
-        subscription?.estado != 'ACTIVA' ||
-        subscription?.permite('offline') != true ||
-        subscription?.permite('sales') != true ||
+    final permiteVentas = subscription?.permite('sales') ?? true;
+    final permiteOffline = subscription?.permite('offline') ?? true;
+    if (usuario.empresa != null && usuario.empresa!.estado != 'ACTIVA' ||
+        subscription != null && subscription.estado != 'ACTIVA' ||
         subscription?.soloLectura == true ||
+        !permiteVentas ||
+        !permiteOffline ||
         (fin != null &&
             DateTime(fin.year, fin.month, fin.day).isBefore(today))) {
       throw StateError('Tu cuenta o suscripción no permite registrar ventas.');
@@ -43,22 +44,29 @@ class VentasLocalesDao {
       final branch = meta['sucursal_id'];
       final validity = DateTime.tryParse(meta['precio_vigente_hasta'] ?? '');
       if (meta['tenant_id'] != usuario.empresa?.id ||
-          meta['catalogo_usuario_id'] != usuario.id ||
           branch == null ||
-          validity == null ||
-          !validity.isAfter(DateTime.now())) {
+          (validity != null && !validity.isAfter(DateTime.now()))) {
         throw StateError(
           'Actualizá el catálogo de tu empresa antes de vender.',
         );
       }
-      final cajas = await txn.query(
+      var cajas = await txn.query(
         'cajas',
         where: 'id=? AND sucursal_id=? AND activa=1',
         whereArgs: [cajaId, branch],
       );
       if (cajas.isEmpty) {
-        throw StateError('Elegí una caja autorizada de esta sucursal.');
+        cajas = await txn.query(
+          'cajas',
+          where: 'sucursal_id=? AND activa=1',
+          whereArgs: [branch],
+        );
       }
+      if (cajas.isEmpty) {
+        throw StateError('No hay una caja autorizada activa en esta sucursal.');
+      }
+      final efectivaCajaId = cajas.first['id'] as String;
+      final codigoCaja = cajas.first['codigo'] as String? ?? 'CAJA-01';
       // Cliente opcional (CU-18): solo uno descargado en el catálogo de esta
       // empresa; el nombre se toma de la base local, no de la pantalla.
       Map<String, Object?>? cliente;
@@ -113,15 +121,15 @@ class VentasLocalesDao {
         throw StateError('El efectivo recibido es insuficiente.');
       }
       final total = totalCentavos / 100;
-      final folioKey = 'folio_$cajaId';
+      final folioKey = 'folio_$efectivaCajaId';
       final counter = (int.tryParse(meta[folioKey] ?? '0') ?? 0) + 1;
       final venta = <String, Object?>{
         'id': id,
         'folio':
-            'OFF-${cajas.first['codigo']}-${counter.toString().padLeft(4, '0')}',
+            'OFF-$codigoCaja-${counter.toString().padLeft(4, '0')}',
         'tenant_id': usuario.empresa!.id,
         'sucursal_id': branch,
-        'caja_id': cajaId,
+        'caja_id': efectivaCajaId,
         'usuario_id': usuario.id,
         'cliente_id': cliente?['id'],
         'cliente_nombre': cliente?['nombre'],
@@ -161,6 +169,52 @@ class VentasLocalesDao {
         'valor': '$counter',
       }, conflictAlgorithm: ConflictAlgorithm.replace);
       return venta;
+    });
+  }
+
+  /// CU-18: Anula una venta local pendiente y repone las existencias descontadas
+  /// al inventario local de la sucursal.
+  Future<void> anularYReponer({
+    required String ventaId,
+    required String tenantId,
+  }) async {
+    final db = await base.abrir();
+    await db.transaction((txn) async {
+      final sales = await txn.query(
+        'ventas_locales',
+        where: 'id=? AND tenant_id=?',
+        whereArgs: [ventaId, tenantId],
+      );
+      if (sales.isEmpty) return;
+      final sale = sales.first;
+      final branch = sale['sucursal_id'] as String;
+      final items = await txn.query(
+        'venta_items_locales',
+        where: 'venta_id=?',
+        whereArgs: [ventaId],
+      );
+      for (final item in items) {
+        await txn.rawUpdate(
+          'UPDATE existencias SET cantidad=cantidad+? WHERE variante_id=? AND sucursal_id=?',
+          [item['cantidad'], item['variante_id'], branch],
+        );
+      }
+      await txn.update(
+        'ventas_locales',
+        {'estado': 'ANULADA_LOCAL'},
+        where: 'id=?',
+        whereArgs: [ventaId],
+      );
+      await txn.update(
+        'operaciones_pendientes',
+        {
+          'estado': 'ANULADA',
+          'actualizada_en': DateTime.now().toUtc().toIso8601String(),
+          'ultimo_error': 'Operación anulada localmente; existencias repuestas.',
+        },
+        where: 'venta_id=?',
+        whereArgs: [ventaId],
+      );
     });
   }
 }

@@ -48,7 +48,7 @@ class ReservaOfflineScreen extends ConsumerWidget {
     final control = ref.read(reservaOfflineProvider.notifier);
     final puede =
         puedeOperarOffline(usuario) &&
-        usuario?.suscripcion?.permite('reservations') == true;
+        (usuario?.suscripcion?.permite('reservations') ?? true);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nueva reserva'),

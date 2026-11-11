@@ -2,11 +2,13 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/retry_policy.dart';
+import '../../../core/notifications/app_notices.dart';
 import '../../../core/offline/base_local.dart';
 import '../../usuarios_catalogo/application/session_controller.dart';
 import '../domain/sincronizacion.dart';
 import '../infrastructure/operaciones_dao.dart';
 import '../infrastructure/sync_api.dart';
+import 'catalogo_offline_controller.dart';
 
 class SincronizacionEstado {
   const SincronizacionEstado({
@@ -53,6 +55,7 @@ final sincronizacionControllerProvider =
       final identity = ref.watch(
         sessionProvider.select((s) => (s.usuario?.empresa?.id, s.usuario?.id)),
       );
+      final notices = ref.watch(appNoticesProvider.notifier);
 
       return SincronizacionController(
         dao: dao,
@@ -60,6 +63,10 @@ final sincronizacionControllerProvider =
         tenantId: identity.$1,
         usuarioId: identity.$2,
         habilitado: identity.$1 != null && identity.$2 != null,
+        notices: notices,
+        onSyncCompletado: () async {
+          await ref.read(catalogoOfflineProvider.notifier).iniciar();
+        },
       );
     });
 
@@ -71,6 +78,8 @@ class SincronizacionController extends StateNotifier<SincronizacionEstado> {
     this.tenantId,
     this.usuarioId,
     this.habilitado = true,
+    this.notices,
+    this.onSyncCompletado,
   }) : retryPolicy = retryPolicy ?? RetryPolicy(),
        super(const SincronizacionEstado()) {
     actualizarContadores();
@@ -81,6 +90,8 @@ class SincronizacionController extends StateNotifier<SincronizacionEstado> {
   final RetryPolicy retryPolicy;
   final String? tenantId, usuarioId;
   final bool habilitado;
+  final AppNotices? notices;
+  final Future<void> Function()? onSyncCompletado;
   Timer? _retryTimer;
   int _intentos = 0;
 
@@ -181,6 +192,33 @@ class SincronizacionController extends StateNotifier<SincronizacionEstado> {
             loteId: resp.batchId,
             httpStatus: 200,
           );
+
+          if (resp.confirmed > 0) {
+            notices?.show(
+              AppNotice(
+                key: 'sync:confirmed:${DateTime.now().millisecondsSinceEpoch}',
+                title: '¡Operación sin conexión confirmada!',
+                detail:
+                    'Se sincronizaron y confirmaron exitosamente ${resp.confirmed} venta(s) guardadas localmente en el servidor.',
+                tone: 'success',
+                important: true,
+                link: '/sin-conexion/operaciones',
+              ),
+            );
+          }
+          if (resp.conflicts > 0 || resp.rejected > 0) {
+            notices?.show(
+              AppNotice(
+                key: 'sync:conflict:${DateTime.now().millisecondsSinceEpoch}',
+                title: 'Aviso: Prenda no disponible o conflicto',
+                detail:
+                    'Una o más prendas de tu compra sin conexión presentaron discrepancia de existencias o requieren reintegro (${resp.conflicts + resp.rejected} caso(s)).',
+                tone: 'warning',
+                important: true,
+                link: '/sin-conexion/operaciones',
+              ),
+            );
+          }
         } catch (e) {
           await dao.liberarEnvio(lote.map((op) => op.id).toList());
           if (!mounted) return null;

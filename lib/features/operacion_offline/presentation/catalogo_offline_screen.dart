@@ -16,7 +16,10 @@ class CatalogoOfflineScreen extends ConsumerWidget {
     ProductoVista producto,
   ) async {
     final estado = ref.read(catalogoOfflineProvider);
-    final permitido = puedeOperarOffline(ref.read(sessionProvider).usuario);
+    final usuario = ref.read(sessionProvider).usuario;
+    final permitido = puedeOperarOffline(usuario);
+    final esPersonal = usuario != null &&
+        (usuario.puede('commerce.write') || usuario.sucursalesAutorizadas.isNotEmpty);
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -114,6 +117,17 @@ class CatalogoOfflineScreen extends ConsumerWidget {
                   'Tu suscripción permite consultar el catálogo. No puedes registrar reservas.',
                   peligro: true,
                 ),
+              if (esPersonal) ...[
+                const SizedBox(height: 12),
+                FilledButton.tonalIcon(
+                  onPressed: () {
+                    Navigator.pop(hoja);
+                    context.push('/sin-conexion/venta');
+                  },
+                  icon: const Icon(Icons.point_of_sale),
+                  label: const Text('Cobrar en caja de mostrador'),
+                ),
+              ],
             ],
           ),
         ),
@@ -293,10 +307,24 @@ class CatalogoOfflineScreen extends ConsumerWidget {
     final estado = ref.watch(catalogoOfflineProvider);
     final reserva = ref.watch(reservaOfflineProvider);
     final control = ref.read(catalogoOfflineProvider.notifier);
+    final usuario = ref.watch(sessionProvider).usuario;
+    final esPersonal = usuario != null &&
+        (usuario.puede('commerce.write') || usuario.sucursalesAutorizadas.isNotEmpty);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Catálogo'),
         actions: [
+          if (esPersonal)
+            IconButton(
+              tooltip: 'Venta POS mostrador',
+              onPressed: () => context.push('/sin-conexion/venta'),
+              icon: const Icon(Icons.point_of_sale),
+            ),
+          IconButton(
+            tooltip: 'Reservas locales',
+            onPressed: () => context.push('/sin-conexion/reservas'),
+            icon: const Icon(Icons.event_note),
+          ),
           IconButton(
             tooltip: 'Preparar modo sin conexión',
             onPressed: () => context.push('/sin-conexion'),

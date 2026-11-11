@@ -61,8 +61,8 @@ class ReservaOfflineController extends StateNotifier<EstadoReservaOffline> {
   final Future<void> Function() actualizar;
   String? agregar(VarianteLocal v, {int cantidad = 1}) {
     if (state.guardando) return 'La reserva se está guardando.';
-    if (!puedeOperarOffline(usuario) ||
-        usuario?.suscripcion?.permite('reservations') != true) {
+    final permiteReserva = usuario?.suscripcion?.permite('reservations') ?? true;
+    if (!puedeOperarOffline(usuario) || !permiteReserva) {
       return 'Tu suscripción permite consultar, pero no registrar reservas sin conexión.';
     }
     if (!v.activa) return 'Esta variante no está activa.';
@@ -121,8 +121,8 @@ class ReservaOfflineController extends StateNotifier<EstadoReservaOffline> {
   Future<String?> confirmar() async {
     if (state.guardando) return null;
     final u = usuario;
-    if (!puedeOperarOffline(u) ||
-        u?.suscripcion?.permite('reservations') != true) {
+    final permiteReserva = u?.suscripcion?.permite('reservations') ?? true;
+    if (!puedeOperarOffline(u) || !permiteReserva) {
       state = state.copyWith(
         error: 'Tu suscripción no permite registrar reservas.',
       );

@@ -66,11 +66,20 @@ class PrepararOfflineScreen extends ConsumerWidget {
                 ],
               ),
             ),
-          if (usuario == null)
+          if (usuario == null) ...[
             AvisoOffline(
               'Iniciá sesión con conexión para preparar el catálogo de tu empresa.',
               info: true,
             ),
+            const SizedBox(height: 8),
+            FilledButton.tonalIcon(
+              onPressed: () =>
+                  context.push('/iniciar-sesion?volverA=/sin-conexion'),
+              icon: const Icon(Icons.login),
+              label: const Text('Iniciar sesión en mi tienda'),
+            ),
+            const SizedBox(height: 12),
+          ],
           if (usuario != null && !puedeOperarOffline(usuario))
             const AvisoOffline(
               'Tu suscripción permite consultar el catálogo guardado, pero no actualizarlo.',
@@ -191,23 +200,31 @@ class PrepararOfflineScreen extends ConsumerWidget {
               ],
             ),
           ),
+          const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: () => context.push('/sin-conexion/catalogo'),
             icon: const Icon(Icons.grid_view),
             label: const Text('Ver catálogo guardado'),
           ),
-          TextButton(
-            onPressed: () => context.push('/sin-conexion/reservas'),
-            child: const Text('Reservas en el teléfono'),
-          ),
-          if (usuario?.puede('commerce.write') == true)
-            FilledButton(
+          if (usuario?.puede('commerce.write') == true) ...[
+            const SizedBox(height: 6),
+            FilledButton.icon(
               onPressed: () => context.push('/sin-conexion/venta'),
-              child: const Text('Venta de contado local'),
+              icon: const Icon(Icons.point_of_sale),
+              label: const Text('Venta de contado local (POS Offline)'),
             ),
-          TextButton(
+          ],
+          const SizedBox(height: 6),
+          FilledButton.tonalIcon(
+            onPressed: () => context.push('/sin-conexion/reservas'),
+            icon: const Icon(Icons.event_available),
+            label: const Text('Reservas en el teléfono'),
+          ),
+          const SizedBox(height: 6),
+          OutlinedButton.icon(
             onPressed: () => context.push('/sin-conexion/operaciones'),
-            child: const Text('Operaciones y resultados de sincronización'),
+            icon: const Icon(Icons.sync_problem_outlined),
+            label: const Text('Operaciones y sincronización'),
           ),
         ],
       ),
