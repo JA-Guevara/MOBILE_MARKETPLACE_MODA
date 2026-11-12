@@ -9,7 +9,7 @@ Map<String, dynamic> snapshotJson({
   int stock = 4,
 }) => {
   'version': version,
-  'generated_at': version,
+  'generated_at': DateTime.tryParse(version) != null ? version : '2026-10-23T12:00:00Z',
   'full': full,
   'tenant': {
     'id': tenant,
@@ -182,3 +182,100 @@ OperacionPendiente operacion(ReservaLocal r, List<ItemReservaLocal> items) =>
       creadaEn: r.creadaEn,
       actualizadaEn: r.creadaEn,
     );
+
+const instantaneaSinSucursales = {
+  'success': false,
+  'error': {
+    'code': 'no_authorized_branches',
+    'message':
+        'Tu usuario no tiene sucursales asignadas. Pedile al administrador que te asigne una.',
+  },
+};
+
+const instantaneaSinModulo = {
+  'success': false,
+  'error': {
+    'code': 'feature_not_in_plan',
+    'message': 'Tu plan no incluye la operación sin conexión.',
+    'details': {
+      'module_code': 'offline',
+    },
+  },
+};
+
+const loteConfirmada = {
+  'batch_id': 'cccccccc-0000-4000-8000-000000000001',
+  'received_at': '2026-11-11T15:00:02Z',
+  'request_id': 'req-0001',
+  'results': [
+    {
+      'client_request_id': 'bbbbbbbb-0000-4000-8000-000000000001',
+      'status': 'CONFIRMED',
+      'server_ref': 'dddddddd-0000-4000-8000-000000000001',
+      'server_number': 'FS-A8F3D1',
+      'conflict_id': null,
+      'conflict_type': null,
+      'reason_code': null,
+      'message': 'Venta sincronizada y confirmada exitosamente.',
+      'replay': false,
+      'refund_amount': null,
+      'refund_status': null,
+    },
+  ],
+};
+
+const loteConflicto = {
+  'batch_id': 'cccccccc-0000-4000-8000-000000000002',
+  'received_at': '2026-11-11T15:00:04Z',
+  'request_id': 'req-0002',
+  'results': [
+    {
+      'client_request_id': 'bbbbbbbb-0000-4000-8000-000000000001',
+      'status': 'CONFLICT',
+      'server_ref': null,
+      'server_number': null,
+      'conflict_id': 'c0ffee00-0000-4000-8000-000000000201',
+      'conflict_type': 'STOCK',
+      'reason_code': null,
+      'message': 'Stock insuficiente en 1 prenda(s).',
+      'replay': false,
+      'refund_amount': null,
+      'refund_status': null,
+    },
+  ],
+};
+
+const loteReintentar = {
+  'batch_id': 'cccccccc-0000-4000-8000-000000000003',
+  'received_at': '2026-11-11T15:00:06Z',
+  'request_id': 'req-0003',
+  'results': [
+    {
+      'client_request_id': 'bbbbbbbb-0000-4000-8000-000000000001',
+      'status': 'RETRY',
+      'server_ref': null,
+      'server_number': null,
+      'conflict_id': null,
+      'conflict_type': null,
+      'reason_code': 'server_error',
+      'message':
+          'No se pudo confirmar la operación. Se conserva para reintentar.',
+      'replay': false,
+      'refund_amount': null,
+      'refund_status': null,
+    },
+  ],
+};
+
+const loteSesionVencida = {
+  'success': false,
+  'error': {
+    'code': 'unauthenticated',
+    'message': 'Tu sesión venció. Iniciá sesión para continuar.',
+  },
+};
+
+const pingOk = {
+  'status': 'ok',
+};
+

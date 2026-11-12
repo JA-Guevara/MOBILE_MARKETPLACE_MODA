@@ -181,3 +181,132 @@ class RegistroSincronizacion {
     );
   }
 }
+
+String estadoIndicador({
+  bool sincronizando = false,
+  bool sesionVencida = false,
+  bool online = true,
+  bool servidorAlcanzable = true,
+  int conflictosCount = 0,
+  int pendientesCount = 0,
+}) {
+  if (sincronizando) return 'SINCRONIZANDO';
+  if (sesionVencida) return 'SESION_VENCIDA';
+  if (!online) return 'SIN_CONEXION';
+  if (!servidorAlcanzable) return 'SERVIDOR_NO_RESPONDE';
+  if (conflictosCount > 0) return 'CONFLICTO';
+  if (pendientesCount > 0) return 'PENDIENTES';
+  return 'AL_DIA';
+}
+
+String _pad2(int n) => n < 10 ? '0$n' : '$n';
+
+String formatearFechaCorta(DateTime d) =>
+    '${_pad2(d.day)}/${_pad2(d.month)} ${_pad2(d.hour)}:${_pad2(d.minute)}';
+
+String textoIndicador(
+  String estado, {
+  int pendientesCount = 0,
+  int conflictosCount = 0,
+  int? minutosDesdeDescarga,
+  DateTime? fechaDatos,
+  int? reintentoEnSegundos,
+  bool desactualizado = false,
+}) {
+  final esDesactualizado =
+      desactualizado ||
+      (minutosDesdeDescarga != null && minutosDesdeDescarga > 1440);
+  if (esDesactualizado && fechaDatos != null) {
+    return 'datos del ${formatearFechaCorta(fechaDatos)}, pueden estar desactualizados';
+  }
+
+  switch (estado) {
+    case 'SINCRONIZANDO':
+      final n = pendientesCount > 0 ? pendientesCount : 1;
+      return n == 1 ? 'Sincronizando 1 operación…' : 'Sincronizando $n operaciones…';
+    case 'SESION_VENCIDA':
+      final n = pendientesCount > 0 ? pendientesCount : 1;
+      return '$n ventas por subir · Iniciá sesión para enviarlas';
+    case 'SIN_CONEXION':
+      if (pendientesCount > 0) {
+        return 'Sin conexión · $pendientesCount por subir · se enviarán solas';
+      }
+      if (fechaDatos != null) {
+        return 'Sin conexión · datos del ${formatearFechaCorta(fechaDatos)}';
+      }
+      return 'Sin conexión';
+    case 'SERVIDOR_NO_RESPONDE':
+      return 'El servidor no responde · reintentando';
+    case 'CONFLICTO':
+      final n = conflictosCount > 0 ? conflictosCount : 1;
+      return n == 1 ? '1 operación necesita revisión' : '$n operaciones necesitan revisión';
+    case 'PENDIENTES':
+      final n = pendientesCount > 0 ? pendientesCount : 1;
+      if (reintentoEnSegundos != null) {
+        return '$n por subir · reintento en $reintentoEnSegundos s';
+      }
+      return '$n por subir';
+    case 'AL_DIA':
+    default:
+      if (minutosDesdeDescarga != null) {
+        return 'Todo sincronizado · datos de hace $minutosDesdeDescarga min';
+      }
+      return 'Todo sincronizado';
+  }
+}
+
+String etiquetaEstado(String estado) {
+  switch (estado.toUpperCase()) {
+    case 'PENDIENTE':
+      return 'Por subir';
+    case 'ENVIADA':
+      return 'Enviando';
+    case 'CONFIRMADA':
+      return 'Confirmada';
+    case 'CONFLICTO':
+      return 'Necesita revisión';
+    case 'RECHAZADA':
+      return 'Rechazada';
+    case 'ANULADA':
+      return 'Anulada';
+    default:
+      return estado;
+  }
+}
+
+String etiquetaTipo(String tipo) {
+  switch (tipo.toUpperCase()) {
+    case 'VENTA':
+    case 'SALE':
+      return 'Venta de contado';
+    case 'RESERVA':
+    case 'RESERVATION':
+      return 'Reserva';
+    default:
+      return tipo;
+  }
+}
+
+bool debeActualizarCatalogo({
+  required bool online,
+  required bool sesionReal,
+  required bool tieneModuloOffline,
+  String? versionLocal,
+  DateTime? ultimaDescarga,
+  DateTime? ahora,
+  String? evento,
+}) {
+  if (!online || !sesionReal || !tieneModuloOffline) return false;
+  if (versionLocal == null || versionLocal.isEmpty) return true;
+
+  final ahoraTime = ahora ?? DateTime.now();
+  final ultimaTime = ultimaDescarga ?? DateTime.fromMillisecondsSinceEpoch(0);
+  final diffMs = ahoraTime.difference(ultimaTime).inMilliseconds;
+
+  if (evento == 'sync_confirmed') return true;
+  if (evento == 'login' || evento == 'reconnect') return true;
+  if (evento == 'visible') return diffMs >= 60000;
+
+  return diffMs >= 300000;
+}
+

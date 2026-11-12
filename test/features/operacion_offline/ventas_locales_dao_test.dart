@@ -31,6 +31,7 @@ void main() {
     await CatalogoLocalDao(
       base,
     ).guardar(InstantaneaCatalogo.desdeJson(snapshot), 'b1', usuarioId: 'u1');
+    await base.guardarMeta('usuario_id', 'u1');
     user = Usuario.desdeJson({
       'id': 'u1',
       'email': 'qa@example.test',
@@ -190,6 +191,158 @@ void main() {
         )).single['cantidad'],
         4,
       );
+    });
+  });
+
+  group('Validaciones de seguridad y estado de venta (MJ-02)', () {
+    test('usuario sin commerce.write lanza error y nada queda guardado', () async {
+      final userSinPermiso = Usuario.desdeJson({
+        'id': 'u-sin-permiso',
+        'email': 'sin@example.test',
+        'first_name': 'Sin',
+        'last_name': 'Permiso',
+        'roles': [
+          {
+            'permissions': ['sync.write'],
+          },
+        ],
+        'tenant': {
+          'id': 'tenant-a',
+          'slug': 'tenant-a',
+          'trade_name': 'Moda',
+          'status': 'ACTIVA',
+        },
+        'subscription': {
+          'plan_code': 'BASICO',
+          'plan_name': 'Básico',
+          'status': 'ACTIVA',
+          'end_date': '2030-12-31',
+          'features': {'offline': true, 'sales': true},
+        },
+      });
+
+      await expectLater(
+        VentasLocalesDao(base).registrar(
+          usuario: userSinPermiso,
+          cajaId: 'cash-1',
+          cantidades: {'v1': 1},
+          recibido: 500,
+        ),
+        throwsA(isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('Tu cuenta o suscripción no permite registrar ventas.'),
+        )),
+      );
+
+      final db = await base.abrir();
+      expect(await db.query('ventas_locales'), isEmpty);
+      expect(await db.query('operaciones_pendientes'), isEmpty);
+    });
+
+    test('sucursal sin cajas activas lanza error', () async {
+      final db = await base.abrir();
+      await db.delete('cajas');
+
+      await expectLater(
+        VentasLocalesDao(base).registrar(
+          usuario: user,
+          cajaId: 'cash-1',
+          cantidades: {'v1': 1},
+          recibido: 500,
+        ),
+        throwsA(isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('No hay una caja autorizada activa en esta sucursal.'),
+        )),
+      );
+    });
+
+    test('catálogo descargado por otro usuario lanza error', () async {
+      final db = await base.abrir();
+      await db.update('meta', {'valor': 'otro-usuario'}, where: 'clave=?', whereArgs: ['usuario_id']);
+
+      await expectLater(
+        VentasLocalesDao(base).registrar(
+          usuario: user,
+          cajaId: 'cash-1',
+          cantidades: {'v1': 1},
+          recibido: 500,
+        ),
+        throwsA(isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('Actualizá el catálogo de tu empresa antes de vender.'),
+        )),
+      );
+    });
+
+    test('sin fecha de vigencia de precios o vencida lanza error', () async {
+      final db = await base.abrir();
+      await db.delete('meta', where: 'clave=?', whereArgs: ['precio_vigente_hasta']);
+
+      await expectLater(
+        VentasLocalesDao(base).registrar(
+          usuario: user,
+          cajaId: 'cash-1',
+          cantidades: {'v1': 1},
+          recibido: 500,
+        ),
+        throwsA(isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('Actualizá el catálogo de tu empresa antes de vender.'),
+        )),
+      );
+
+      await db.insert('meta', {
+        'clave': 'precio_vigente_hasta',
+        'valor': DateTime.now().subtract(const Duration(minutes: 5)).toUtc().toIso8601String(),
+      });
+
+      await expectLater(
+        VentasLocalesDao(base).registrar(
+          usuario: user,
+          cajaId: 'cash-1',
+          cantidades: {'v1': 1},
+          recibido: 500,
+        ),
+        throwsA(isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('Actualizá el catálogo de tu empresa antes de vender.'),
+        )),
+      );
+    });
+
+    test('venta válida registra venta, líneas y operación PENDIENTE descontando stock en transacción', () async {
+      final venta = await VentasLocalesDao(base).registrar(
+        usuario: user,
+        cajaId: 'cash-1',
+        cantidades: {'v1': 2},
+        recibido: 700,
+      );
+
+      final db = await base.abrir();
+      final ventas = await db.query('ventas_locales', where: 'id=?', whereArgs: [venta['id']]);
+      expect(ventas, hasLength(1));
+      expect(ventas.single['estado'], 'PENDIENTE');
+
+      final lineas = await db.query('lineas_venta_local', where: 'venta_id=?', whereArgs: [venta['id']]);
+      expect(lineas, hasLength(1));
+      expect(lineas.single['cantidad'], 2);
+
+      final ops = await db.query('operaciones_pendientes', where: 'id=?', whereArgs: [venta['id']]);
+      expect(ops, hasLength(1));
+      expect(ops.single['estado'], 'PENDIENTE');
+
+      final stock = (await db.query(
+        'existencias',
+        where: 'variante_id=? AND sucursal_id=?',
+        whereArgs: ['v1', 'b1'],
+      )).single['cantidad'];
+      expect(stock, 2);
     });
   });
 }

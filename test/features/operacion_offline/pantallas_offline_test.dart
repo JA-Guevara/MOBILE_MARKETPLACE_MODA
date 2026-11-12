@@ -26,6 +26,10 @@ import 'package:mobile_marketplace_moda/features/operacion_offline/presentation/
 import 'package:mobile_marketplace_moda/features/operacion_offline/presentation/reserva_offline_screen.dart';
 import 'package:mobile_marketplace_moda/features/operacion_offline/presentation/reservas_locales_screen.dart';
 import 'package:mobile_marketplace_moda/features/operacion_offline/presentation/comprobante_reserva_screen.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:mobile_marketplace_moda/app/router.dart';
+import 'package:mobile_marketplace_moda/features/operacion_offline/presentation/operaciones_offline_screen.dart';
+import 'package:mobile_marketplace_moda/features/operacion_offline/presentation/venta_offline_screen.dart';
 import 'fixtures.dart';
 
 class SesionVisible extends SessionController {
@@ -65,6 +69,8 @@ class CatalogoVisible extends CatalogoOfflineController {
             cargando: false,
           );
   }
+  @override
+  Future<void> iniciar() async {}
 }
 
 class ReservaVisible extends ReservaOfflineController {
@@ -86,6 +92,8 @@ class ReservaVisible extends ReservaOfflineController {
 
 void main() {
   setUpAll(() async {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
     // Flutter test usa Ahem por defecto. Para capturas legibles se carga una
     // fuente local cuando existe; las pruebas siguen portables sin Windows.
     final font = File('C:/Windows/Fonts/segoeui.ttf');
@@ -225,5 +233,165 @@ void main() {
   ) async {
     await montar(tester, const CatalogoOfflineScreen(), vacio: true);
     expect(find.text('Aún no hay datos sin conexión'), findsOneWidget);
+  });
+
+  group('Pantallas offline y legibilidad (MJ-02)', () {
+    testWidgets('operaciones muestra Venta de contado y Por subir, no VENTA · PENDIENTE', (tester) async {
+      tester.view.physicalSize = const Size(360, 740);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final usuario = usuarioOffline();
+      final base = BaseLocal(fabrica: databaseFactoryFfi, ruta: inMemoryDatabasePath);
+      await tester.runAsync(() async {
+        final db = await base.abrir();
+        await db.insert('operaciones_pendientes', {
+          'id': 'op-test-1',
+          'tipo': 'VENTA',
+          'tenant_id': usuario.empresa!.id,
+          'sucursal_id': 'b1',
+          'usuario_id': usuario.id,
+          'dispositivo_id': 'd1',
+          'payload': '{"total": "100.00"}',
+          'creada_en': '2026-11-11T14:30:00.000Z',
+          'actualizada_en': '2026-11-11T14:30:00.000Z',
+          'estado': 'PENDIENTE',
+        });
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            baseLocalProvider.overrideWithValue(base),
+            sessionProvider.overrideWith((ref) => SesionVisible(usuario)),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.claro,
+            home: const OperacionesOfflineScreen(),
+          ),
+        ),
+      );
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      });
+      await tester.pump();
+
+      expect(find.textContaining('Venta de contado'), findsWidgets);
+      expect(find.textContaining('Por subir'), findsWidgets);
+      expect(find.textContaining('VENTA · PENDIENTE'), findsNothing);
+    });
+
+    testWidgets('operaciones la fecha se muestra dd/MM HH:mm', (tester) async {
+      tester.view.physicalSize = const Size(360, 740);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final usuario = usuarioOffline();
+      final base = BaseLocal(fabrica: databaseFactoryFfi, ruta: inMemoryDatabasePath);
+      await tester.runAsync(() async {
+        final db = await base.abrir();
+        await db.insert('operaciones_pendientes', {
+          'id': 'op-test-2',
+          'tipo': 'VENTA',
+          'tenant_id': usuario.empresa!.id,
+          'sucursal_id': 'b1',
+          'usuario_id': usuario.id,
+          'dispositivo_id': 'd1',
+          'payload': '{"total": "100.00"}',
+          'creada_en': '2026-11-11T14:30:00.000Z',
+          'actualizada_en': '2026-11-11T14:30:00.000Z',
+          'estado': 'PENDIENTE',
+        });
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            baseLocalProvider.overrideWithValue(base),
+            sessionProvider.overrideWith((ref) => SesionVisible(usuario)),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.claro,
+            home: const OperacionesOfflineScreen(),
+          ),
+        ),
+      );
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      });
+      await tester.pump();
+
+      expect(find.textContaining('11/11'), findsWidgets);
+    });
+
+    testWidgets('venta sin cajas muestra texto del estado sin_cajas y ningun selector con Caja 1 (Principal)', (tester) async {
+      tester.view.physicalSize = const Size(360, 740);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final usuario = usuarioOffline();
+      final base = BaseLocal(fabrica: databaseFactoryFfi, ruta: inMemoryDatabasePath);
+      await tester.runAsync(() async {
+        await CatalogoLocalDao(base).guardar(instantanea(), 'b1', usuarioId: usuario.id);
+        final db = await base.abrir();
+        await db.delete('cajas');
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            baseLocalProvider.overrideWithValue(base),
+            sessionProvider.overrideWith((ref) => SesionVisible(usuario)),
+            catalogoOfflineProvider.overrideWith((ref) => CatalogoVisible(usuario)),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.claro,
+            home: const VentaOfflineScreen(),
+          ),
+        ),
+      );
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      });
+      await tester.pump();
+
+      expect(find.textContaining('No hay una caja autorizada activa'), findsWidgets);
+      expect(find.textContaining('Caja 1 (Principal)'), findsNothing);
+    });
+
+    testWidgets('cliente que navega a /sin-conexion/venta termina en /sin-conexion/catalogo', (tester) async {
+      final cliente = usuarioOffline();
+      final base = BaseLocal(fabrica: databaseFactoryFfi, ruta: inMemoryDatabasePath);
+
+      final container = ProviderContainer(
+        overrides: [
+          sessionProvider.overrideWith((ref) => SesionVisible(cliente)),
+          baseLocalProvider.overrideWithValue(base),
+          catalogoOfflineProvider.overrideWith((ref) => CatalogoVisible(cliente, vacio: true)),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final router = container.read(routerProvider);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            theme: AppTheme.claro,
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      router.go('/sin-conexion/venta');
+      await tester.pumpAndSettle();
+
+      final location = router.routeInformationProvider.value.uri.toString();
+      expect(location, '/sin-conexion/catalogo');
+    });
   });
 }

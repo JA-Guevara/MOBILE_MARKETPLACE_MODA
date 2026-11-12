@@ -142,4 +142,228 @@ void main() {
     expect(r.mensajeError, contains('HTTP 500'));
     expect(r.mensajeError, contains('pendientes'));
   });
+
+  group('Funciones puras de sincronización e indicador (MJ-02)', () {
+    test('estadoIndicador respeta la prioridad del contrato en las 7 combinaciones', () {
+      // Prioridad: SINCRONIZANDO > SESION_VENCIDA > SIN_CONEXION > SERVIDOR_NO_RESPONDE > CONFLICTO > PENDIENTES > AL_DIA
+      expect(
+        estadoIndicador(
+          sincronizando: true,
+          sesionVencida: true,
+          online: false,
+          conflictosCount: 1,
+        ),
+        'SINCRONIZANDO',
+      );
+
+      expect(
+        estadoIndicador(
+          sincronizando: false,
+          sesionVencida: true,
+          online: false,
+          pendientesCount: 3,
+        ),
+        'SESION_VENCIDA',
+      );
+
+      expect(
+        estadoIndicador(
+          sincronizando: false,
+          sesionVencida: false,
+          online: false,
+          servidorAlcanzable: false,
+          pendientesCount: 2,
+        ),
+        'SIN_CONEXION',
+      );
+
+      expect(
+        estadoIndicador(
+          sincronizando: false,
+          online: true,
+          servidorAlcanzable: false,
+          conflictosCount: 1,
+        ),
+        'SERVIDOR_NO_RESPONDE',
+      );
+
+      expect(
+        estadoIndicador(
+          sincronizando: false,
+          online: true,
+          servidorAlcanzable: true,
+          conflictosCount: 2,
+          pendientesCount: 5,
+        ),
+        'CONFLICTO',
+      );
+
+      expect(
+        estadoIndicador(
+          sincronizando: false,
+          online: true,
+          servidorAlcanzable: true,
+          conflictosCount: 0,
+          pendientesCount: 3,
+        ),
+        'PENDIENTES',
+      );
+
+      expect(
+        estadoIndicador(
+          sincronizando: false,
+          online: true,
+          servidorAlcanzable: true,
+          conflictosCount: 0,
+          pendientesCount: 0,
+        ),
+        'AL_DIA',
+      );
+    });
+
+    test('textoIndicador devuelve los textos exactos del enmaquetado, con plurales', () {
+      expect(
+        textoIndicador('AL_DIA', minutosDesdeDescarga: 2),
+        'Todo sincronizado · datos de hace 2 min',
+      );
+      expect(textoIndicador('AL_DIA'), 'Todo sincronizado');
+
+      expect(
+        textoIndicador('SINCRONIZANDO', pendientesCount: 1),
+        'Sincronizando 1 operación…',
+      );
+      expect(
+        textoIndicador('SINCRONIZANDO', pendientesCount: 3),
+        'Sincronizando 3 operaciones…',
+      );
+
+      expect(
+        textoIndicador('PENDIENTES', pendientesCount: 3, reintentoEnSegundos: 20),
+        '3 por subir · reintento en 20 s',
+      );
+      expect(
+        textoIndicador('PENDIENTES', pendientesCount: 1),
+        '1 por subir',
+      );
+
+      expect(
+        textoIndicador('SIN_CONEXION', pendientesCount: 3),
+        'Sin conexión · 3 por subir · se enviarán solas',
+      );
+      expect(
+        textoIndicador(
+          'SIN_CONEXION',
+          pendientesCount: 0,
+          fechaDatos: DateTime(2026, 11, 11, 10, 40),
+        ),
+        contains('Sin conexión · datos del 11/11 10:40'),
+      );
+
+      expect(
+        textoIndicador('SESION_VENCIDA', pendientesCount: 3),
+        '3 ventas por subir · Iniciá sesión para enviarlas',
+      );
+
+      expect(
+        textoIndicador('CONFLICTO', conflictosCount: 1),
+        '1 operación necesita revisión',
+      );
+      expect(
+        textoIndicador('CONFLICTO', conflictosCount: 2),
+        '2 operaciones necesitan revisión',
+      );
+
+      expect(
+        textoIndicador('SERVIDOR_NO_RESPONDE'),
+        'El servidor no responde · reintentando',
+      );
+
+      expect(
+        textoIndicador(
+          'AL_DIA',
+          minutosDesdeDescarga: 1500,
+          fechaDatos: DateTime(2026, 11, 10, 9, 12),
+        ),
+        contains('datos del 10/11 09:12, pueden estar desactualizados'),
+      );
+    });
+
+    test('etiquetas de estado y tipo', () {
+      expect(etiquetaEstado('PENDIENTE'), 'Por subir');
+      expect(etiquetaEstado('ENVIADA'), 'Enviando');
+      expect(etiquetaEstado('CONFIRMADA'), 'Confirmada');
+      expect(etiquetaEstado('CONFLICTO'), 'Necesita revisión');
+      expect(etiquetaEstado('RECHAZADA'), 'Rechazada');
+      expect(etiquetaEstado('ANULADA'), 'Anulada');
+
+      expect(etiquetaTipo('VENTA'), 'Venta de contado');
+      expect(etiquetaTipo('RESERVA'), 'Reserva');
+    });
+
+    test('debeActualizarCatalogo evalúa red, sesión, módulo, tiempo y eventos', () {
+      final base = DateTime(2026, 11, 11, 14, 0);
+
+      // Sin red / sesión / módulo -> false
+      expect(
+        debeActualizarCatalogo(
+          online: false,
+          sesionReal: true,
+          tieneModuloOffline: true,
+          versionLocal: 'v1',
+        ),
+        isFalse,
+      );
+
+      // Sin versión local -> true
+      expect(
+        debeActualizarCatalogo(
+          online: true,
+          sesionReal: true,
+          tieneModuloOffline: true,
+          versionLocal: null,
+        ),
+        isTrue,
+      );
+
+      // Con 2 min sin evento -> false
+      expect(
+        debeActualizarCatalogo(
+          online: true,
+          sesionReal: true,
+          tieneModuloOffline: true,
+          versionLocal: 'v1',
+          ultimaDescarga: base,
+          ahora: base.add(const Duration(minutes: 2)),
+        ),
+        isFalse,
+      );
+
+      // Con 6 min sin evento -> true
+      expect(
+        debeActualizarCatalogo(
+          online: true,
+          sesionReal: true,
+          tieneModuloOffline: true,
+          versionLocal: 'v1',
+          ultimaDescarga: base,
+          ahora: base.add(const Duration(minutes: 6)),
+        ),
+        isTrue,
+      );
+
+      // Evento sync_confirmed -> true
+      expect(
+        debeActualizarCatalogo(
+          online: true,
+          sesionReal: true,
+          tieneModuloOffline: true,
+          versionLocal: 'v1',
+          ultimaDescarga: base,
+          ahora: base.add(const Duration(minutes: 2)),
+          evento: 'sync_confirmed',
+        ),
+        isTrue,
+      );
+    });
+  });
 }
