@@ -19,7 +19,7 @@ class CatalogoOfflineScreen extends ConsumerWidget {
     final estado = ref.read(catalogoOfflineProvider);
     final usuario = ref.read(sessionProvider).usuario;
     final permitido = puedeOperarOffline(usuario);
-    final esCliente = usuario != null && !usuario.puede('commerce.write');
+    final esCliente = usuario?.puede('sync.write') == true;
     final esPersonal =
         usuario != null &&
         (usuario.puede('commerce.write') ||
@@ -57,7 +57,7 @@ class CatalogoOfflineScreen extends ConsumerWidget {
                             children: [
                               if (esCliente)
                                 IconButton(
-                                  tooltip: 'Agregar a mi compra',
+                                  tooltip: 'Agregar a mi pedido online',
                                   onPressed: permitido
                                       ? () {
                                           final error = ref
@@ -71,7 +71,7 @@ class CatalogoOfflineScreen extends ConsumerWidget {
                                             ).showSnackBar(
                                               const SnackBar(
                                                 content: Text(
-                                                  'Prenda agregada a mi compra.',
+                                                  'Prenda agregada a tu pedido pendiente.',
                                                 ),
                                               ),
                                             );
@@ -372,9 +372,9 @@ class CatalogoOfflineScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Catálogo'),
         actions: [
-          if (usuario != null && !usuario.puede('commerce.write'))
+          if (usuario?.puede('sync.write') == true)
             IconButton(
-              tooltip: 'Mi compra sin conexión',
+              tooltip: 'Mi pedido pendiente',
               onPressed: () => context.push('/sin-conexion/comprar'),
               icon: Badge(
                 isLabelVisible: compra.items.isNotEmpty,

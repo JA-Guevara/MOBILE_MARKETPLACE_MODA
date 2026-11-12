@@ -18,6 +18,7 @@ class ComprasLocalesDao {
     required String contactoTelefono,
     required String formaPago,
     String? notas,
+    Map<String, dynamic>? direccionEntrega,
   }) async {
     final tenantId = usuario.empresa?.id;
     if (tenantId == null || !usuario.puede('sync.write')) {
@@ -31,7 +32,7 @@ class ComprasLocalesDao {
         contactoTelefono.trim().length < 7) {
       throw StateError('Completá tu nombre y teléfono de contacto.');
     }
-    final error = validarItemsCompra(items);
+    final error = validarItemsCompra(items, validarStock: false);
     if (error != null) throw StateError(error);
     if (items.map((item) => item.varianteId).toSet().length != items.length) {
       throw StateError('La compra contiene prendas repetidas.');
@@ -42,20 +43,18 @@ class ComprasLocalesDao {
     return db.transaction((txn) async {
       final rows = await txn.query(
         'meta',
-        where: 'clave IN (?, ?, ?, ?, ?)',
+        where: 'clave IN (?, ?, ?, ?)',
         whereArgs: [
           'tenant_id',
           'sucursal_id',
           'catalogo_usuario_id',
           'descargado_en',
-          'precio_vigente_hasta',
         ],
       );
       final meta = {
         for (final row in rows) row['clave'] as String: row['valor'] as String,
       };
       final descargadoEn = DateTime.tryParse(meta['descargado_en'] ?? '');
-      final vigencia = DateTime.tryParse(meta['precio_vigente_hasta'] ?? '');
       if (meta['tenant_id'] != tenantId ||
           meta['catalogo_usuario_id'] != usuario.id ||
           meta['sucursal_id'] != sucursalId ||
@@ -64,20 +63,11 @@ class ComprasLocalesDao {
           'Descargá primero el catálogo de esta empresa y sucursal.',
         );
       }
-      if (vigencia == null || !vigencia.isAfter(DateTime.now())) {
-        throw StateError(
-          'Los precios guardados vencieron. Conectate para actualizarlos antes de comprar.',
-        );
-      }
-
       final compraId = CommerceApi.nuevaClaveSolicitud();
       final ahora = DateTime.now().toUtc().toIso8601String();
       final lineas = <ItemCompraLocal>[];
       var totalCentavos = 0;
       for (final item in items) {
-        if (item.cantidad > item.stockDisponible) {
-          throw StateError('La cantidad supera la existencia local conocida.');
-        }
         final filas = await txn.rawQuery(
           '''SELECT p.nombre, v.talla, v.color, v.precio, p.precio_base, p.precio_oferta, e.cantidad
              FROM variantes v JOIN productos p ON p.id=v.producto_id
@@ -90,9 +80,6 @@ class ComprasLocalesDao {
         }
         final row = filas.single;
         final stock = (row['cantidad'] as num).toInt();
-        if (item.cantidad > stock) {
-          throw StateError('No hay existencia local suficiente.');
-        }
         final precio =
             (row['precio_oferta'] as num?)?.toDouble() ??
             (row['precio'] as num?)?.toDouble() ??
@@ -115,6 +102,7 @@ class ComprasLocalesDao {
         contactoTelefono: contactoTelefono,
         formaPago: formaPago,
         notas: notas,
+        direccionEntrega: direccionEntrega,
         deviceId: deviceId,
       );
       await txn.insert('compras_locales', {

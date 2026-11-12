@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_exception.dart';
+import '../../../core/offline/base_local.dart';
 import '../../usuarios_catalogo/domain/address.dart';
+import '../../usuarios_catalogo/application/session_controller.dart';
 import '../../usuarios_catalogo/infrastructure/direcciones_api.dart';
 import '../domain/commerce_models.dart';
 import '../infrastructure/commerce_api.dart';
@@ -100,6 +103,8 @@ class EstadoCarrito {
     this.ultimoPedido,
     this.sucursalManual = false,
     this.ningunaSucursalCubre = false,
+    this.carritoLocal = false,
+    this.falloDeRed = false,
   });
 
   final Carrito? carrito;
@@ -140,6 +145,8 @@ class EstadoCarrito {
   /// Ya se probaron todas las sucursales y ninguna cubre el carrito completo.
   /// Sirve para decirlo en vez de dejar los botones grises sin explicación.
   final bool ningunaSucursalCubre;
+  final bool carritoLocal;
+  final bool falloDeRed;
 
   List<ItemCarrito> get items => carrito?.items ?? const [];
   bool get vacio => items.isEmpty;
@@ -172,6 +179,8 @@ class EstadoCarrito {
     String? errorCupon,
     bool? sucursalManual,
     bool? ningunaSucursalCubre,
+    bool? carritoLocal,
+    bool? falloDeRed,
     Pedido? ultimoPedido,
     bool limpiarError = false,
     bool limpiarCupon = false,
@@ -197,6 +206,8 @@ class EstadoCarrito {
         : (ultimoPedido ?? this.ultimoPedido),
     sucursalManual: sucursalManual ?? this.sucursalManual,
     ningunaSucursalCubre: ningunaSucursalCubre ?? this.ningunaSucursalCubre,
+    carritoLocal: carritoLocal ?? this.carritoLocal,
+    falloDeRed: limpiarError ? false : falloDeRed ?? this.falloDeRed,
   );
 }
 
@@ -207,13 +218,30 @@ class EstadoCarrito {
 /// carrito entero en vez de recalcular local, porque los descuentos y el stock
 /// disponible los decide el servidor.
 class CarritoController extends StateNotifier<EstadoCarrito> {
-  CarritoController(this._comercio, this._direcciones)
-    : super(const EstadoCarrito());
+  CarritoController(
+    this._comercio,
+    this._direcciones, {
+    BaseLocal? base,
+    String? tenantId,
+    String? usuarioId,
+  }) : _base = base,
+       _tenantId = tenantId,
+       _usuarioId = usuarioId,
+       _claveSnapshot = tenantId == null || usuarioId == null
+           ? null
+           : 'carrito_cliente:$tenantId:$usuarioId',
+       super(const EstadoCarrito());
 
   final CommerceApi _comercio;
   final DireccionesApi _direcciones;
+  final BaseLocal? _base;
+  final String? _tenantId, _usuarioId;
+  final String? _claveSnapshot;
   int _ultimaCarga = 0;
   int _ultimaLectura = 0;
+
+  bool _esFalloDeRed(ApiException error) =>
+      error.sinConexion || const [502, 503, 504].contains(error.statusCode);
 
   Future<void> cargar() async {
     final carga = ++_ultimaCarga;
@@ -247,7 +275,17 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
       state = state.copyWith(cargando: false);
     } on ApiException catch (error) {
       if (mounted && carga == _ultimaCarga) {
-        state = state.copyWith(cargando: false, error: error.message);
+        final falloDeRed = _esFalloDeRed(error);
+        final restaurado = falloDeRed
+            ? await _restaurarCarritoLocal(error.message)
+            : false;
+        if (!restaurado && mounted && carga == _ultimaCarga) {
+          state = state.copyWith(
+            cargando: false,
+            error: error.message,
+            falloDeRed: falloDeRed,
+          );
+        }
       }
     } catch (_) {
       if (mounted && carga == _ultimaCarga) {
@@ -270,10 +308,120 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
     state = state.copyWith(
       carrito: carrito,
       metodoPago: carrito.tarjetaDisponible ? state.metodoPago : 'manual',
+      carritoLocal: false,
+      falloDeRed: false,
       // Un pedido anterior no debe reemplazar la acción de crear uno nuevo
       // cuando el servidor ya confirma que hay prendas otra vez.
       limpiarUltimoPedido: carrito.items.isNotEmpty,
     );
+    unawaited(_guardarCarritoLocal());
+  }
+
+  Future<void> _guardarCarritoLocal() async {
+    final base = _base;
+    final key = _claveSnapshot;
+    final carrito = state.carrito;
+    if (base == null || key == null || carrito == null) return;
+    try {
+      await base.guardarMeta(
+        key,
+        jsonEncode({
+          'tenant_id': _tenantId,
+          'usuario_id': _usuarioId,
+          'sucursal_id': state.sucursalId,
+          'cupon': state.cupon,
+          'metodo_pago': state.metodoPago,
+          'entrega': {
+            'destinatario': state.entrega.destinatario,
+            'telefono': state.entrega.telefono,
+            'linea': state.entrega.linea,
+            'ciudad': state.entrega.ciudad,
+            'codigo_postal': state.entrega.codigoPostal,
+            'pais': state.entrega.pais,
+          },
+          'carrito': {
+            'items': [
+              for (final item in carrito.items)
+                {
+                  'variant_id': item.variantId,
+                  'product_id': item.productId,
+                  'name': item.name,
+                  'sku': item.sku,
+                  'size': item.size,
+                  'color': item.color,
+                  'image_url': item.imageUrl,
+                  'unit_price': item.unitPrice,
+                  'quantity': item.quantity,
+                  'available': item.available,
+                  'line_total': item.lineTotal,
+                },
+            ],
+            'subtotal': carrito.subtotal,
+            'discount_total': carrito.discountTotal,
+            'discounts': [
+              for (final discount in carrito.discounts)
+                {
+                  'promotion_id': discount.promotionId,
+                  'name': discount.name,
+                  'code': discount.code,
+                  'type': discount.type,
+                  'amount': discount.amount,
+                  'message': discount.message,
+                },
+            ],
+            'coupon_code': carrito.couponCode,
+            'total': carrito.total,
+            'currency': carrito.currency,
+            'card_payments_available': carrito.tarjetaDisponible,
+          },
+        }),
+      );
+    } catch (_) {
+      // La copia ayuda ante una pérdida de señal; nunca invalida el carrito remoto.
+    }
+  }
+
+  Future<bool> _restaurarCarritoLocal(String mensaje) async {
+    final base = _base;
+    final key = _claveSnapshot;
+    if (base == null || key == null) return false;
+    try {
+      final raw = await base.leerMeta(key);
+      if (raw == null) return false;
+      final snapshot = jsonDecode(raw) as Map<String, dynamic>;
+      if (snapshot['tenant_id'] != _tenantId ||
+          snapshot['usuario_id'] != _usuarioId) {
+        return false;
+      }
+      final cartJson = snapshot['carrito'];
+      if (cartJson is! Map<String, dynamic>) return false;
+      state = state.copyWith(
+        carrito: Carrito.desdeJson(cartJson),
+        sucursalId: snapshot['sucursal_id'] as String? ?? '',
+        cupon: snapshot['cupon'] as String? ?? '',
+        metodoPago: snapshot['metodo_pago'] as String? ?? 'stripe',
+        entrega: snapshot['entrega'] is Map<String, dynamic>
+            ? FormularioEntrega(
+                destinatario:
+                    snapshot['entrega']['destinatario'] as String? ?? '',
+                telefono: snapshot['entrega']['telefono'] as String? ?? '',
+                linea: snapshot['entrega']['linea'] as String? ?? '',
+                ciudad: snapshot['entrega']['ciudad'] as String? ?? '',
+                codigoPostal:
+                    snapshot['entrega']['codigo_postal'] as String? ?? '',
+                pais: snapshot['entrega']['pais'] as String? ?? 'BO',
+              )
+            : state.entrega,
+        cargando: false,
+        carritoLocal: true,
+        falloDeRed: true,
+        error:
+            '$mensaje Mostramos tu carrito guardado; todavía no se confirmó ni cobró.',
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Las direcciones guardadas son una comodidad: si fallan, se compra igual
@@ -328,6 +476,7 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
           metodoPago: prueba.tarjetaDisponible ? state.metodoPago : 'manual',
           ningunaSucursalCubre: false,
         );
+        unawaited(_guardarCarritoLocal());
         return;
       }
     }
@@ -437,8 +586,10 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
     );
   }
 
-  void escribirEntrega(FormularioEntrega entrega) =>
-      state = state.copyWith(entrega: entrega, direccionGuardadaId: '');
+  Future<void> escribirEntrega(FormularioEntrega entrega) async {
+    state = state.copyWith(entrega: entrega, direccionGuardadaId: '');
+    await _guardarCarritoLocal();
+  }
 
   void alternarGuardarEnPerfil(bool valor) =>
       state = state.copyWith(guardarEnPerfil: valor);
@@ -446,6 +597,7 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
   void elegirMetodoPago(String metodo) {
     if (metodo == 'stripe' && state.carrito?.tarjetaDisponible != true) return;
     state = state.copyWith(metodoPago: metodo);
+    unawaited(_guardarCarritoLocal());
   }
 
   /// Crea el pedido y devuelve la URL de pago si el método es Stripe.
@@ -495,7 +647,11 @@ class CarritoController extends StateNotifier<EstadoCarrito> {
       return (pedido: pedido, urlPago: url, errorPago: errorPago);
     } on ApiException catch (error) {
       if (!mounted) return null;
-      state = state.copyWith(ocupado: false, error: error.message);
+      state = state.copyWith(
+        ocupado: false,
+        error: error.message,
+        falloDeRed: _esFalloDeRed(error),
+      );
       return null;
     } catch (_) {
       if (!mounted) return null;
@@ -535,5 +691,10 @@ final StateNotifierProvider<CarritoController, EstadoCarrito> carritoProvider =
       (ref) => CarritoController(
         ref.watch(commerceApiProvider),
         ref.watch(direccionesApiProvider),
+        base: ref.watch(baseLocalProvider),
+        tenantId: ref.watch(
+          sessionProvider.select((s) => s.usuario?.empresa?.id),
+        ),
+        usuarioId: ref.watch(sessionProvider.select((s) => s.usuario?.id)),
       ),
     );

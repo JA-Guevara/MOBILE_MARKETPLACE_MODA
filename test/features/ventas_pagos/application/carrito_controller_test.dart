@@ -4,9 +4,11 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_marketplace_moda/core/network/api_client.dart';
+import 'package:mobile_marketplace_moda/core/offline/base_local.dart';
 import 'package:mobile_marketplace_moda/features/usuarios_catalogo/infrastructure/direcciones_api.dart';
 import 'package:mobile_marketplace_moda/features/ventas_pagos/application/carrito_controller.dart';
 import 'package:mobile_marketplace_moda/features/ventas_pagos/infrastructure/commerce_api.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// Backend falso con un carrito en memoria: cambiar una cantidad tiene que
 /// verse reflejado en el siguiente `GET`, como pasa de verdad.
@@ -27,6 +29,7 @@ class _ServidorFalso implements HttpClientAdapter {
   String? ultimaSucursalConsultada;
   bool conDescuento = false;
   bool respuestaStripeInvalida = false;
+  bool sinRed = false;
   bool tarjetaDisponible = true;
   List<Map<String, dynamic>> direcciones = [];
 
@@ -36,6 +39,12 @@ class _ServidorFalso implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
+    if (sinRed) {
+      throw DioException(
+        requestOptions: options,
+        type: DioExceptionType.connectionTimeout,
+      );
+    }
     pedidos.add('${options.method} ${options.path}');
     if (options.data is Map<String, dynamic>) {
       cuerpos.add(options.data as Map<String, dynamic>);
@@ -169,11 +178,19 @@ class _ServidorFalso implements HttpClientAdapter {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  sqfliteFfiInit();
   late _ServidorFalso servidor;
   late CommerceApi comercio;
 
-  CarritoController construir() {
+  CarritoController construir({
+    BaseLocal? base,
+    String? tenantId,
+    String? usuarioId,
+    bool sinRed = false,
+  }) {
     servidor = _ServidorFalso();
+    servidor.sinRed = sinRed;
     final dio = Dio(
       BaseOptions(
         baseUrl: 'http://test/api/v1',
@@ -183,7 +200,13 @@ void main() {
     dio.httpClientAdapter = servidor;
     final cliente = ApiClient(dio: dio);
     comercio = CommerceApi(cliente);
-    return CarritoController(comercio, DireccionesApi(cliente));
+    return CarritoController(
+      comercio,
+      DireccionesApi(cliente),
+      base: base,
+      tenantId: tenantId,
+      usuarioId: usuarioId,
+    );
   }
 
   /// Entrega mínima válida, para no repetirla en cada prueba de compra.
@@ -222,6 +245,45 @@ void main() {
       expect(control.state.entrega.destinatario, 'Ana Vargas');
       expect(control.state.entrega.completo, isTrue);
     });
+
+    test(
+      'recupera el carrito y la dirección guardados si se corta la red',
+      () async {
+        final base = BaseLocal(
+          fabrica: databaseFactoryFfi,
+          ruta: inMemoryDatabasePath,
+        );
+        addTearDown(base.cerrar);
+        final conRed = construir(
+          base: base,
+          tenantId: 'tenant-1',
+          usuarioId: 'user-1',
+        );
+        await conRed.cargar();
+        await conRed.escribirEntrega(
+          const FormularioEntrega(
+            destinatario: 'Ana Vargas',
+            telefono: '77712345',
+            linea: 'Calle Falsa 123',
+            ciudad: 'Santa Cruz',
+          ),
+        );
+
+        final sinRed = construir(
+          base: base,
+          tenantId: 'tenant-1',
+          usuarioId: 'user-1',
+          sinRed: true,
+        );
+        await sinRed.cargar();
+
+        expect(sinRed.state.carritoLocal, isTrue);
+        expect(sinRed.state.items, hasLength(1));
+        expect(sinRed.state.sucursalId, 'b1');
+        expect(sinRed.state.entrega.linea, 'Calle Falsa 123');
+        expect(sinRed.state.falloDeRed, isTrue);
+      },
+    );
 
     test('sin direcciones guardadas el formulario queda vacío', () async {
       final control = construir();

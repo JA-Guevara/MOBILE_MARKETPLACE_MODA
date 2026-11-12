@@ -294,7 +294,7 @@ class PrepararOfflineScreen extends ConsumerWidget {
             FilledButton.icon(
               onPressed: () => context.push('/sin-conexion/venta'),
               icon: const Icon(Icons.point_of_sale),
-              label: const Text('Venta de contado →'),
+              label: const Text('Caja de tienda · contado →'),
             ),
           ],
           const SizedBox(height: 6),

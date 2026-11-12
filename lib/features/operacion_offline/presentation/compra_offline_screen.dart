@@ -37,7 +37,7 @@ class CompraOfflineScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Comprar sin conexión'),
+        title: const Text('Confirmar pedido'),
         actions: const [IndicadorConexion()],
       ),
       body: catalogo.cargando
@@ -59,7 +59,7 @@ class CompraOfflineScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               children: [
                 Text(
-                  'Mi compra',
+                  'Pedido online pendiente',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 10),
@@ -88,7 +88,9 @@ class CompraOfflineScreen extends ConsumerWidget {
                                   Text(
                                     '${item.varianteDesc} · ${_bs(item.precioUnitario)}',
                                   ),
-                                  Text('Disponible ${item.stockDisponible}'),
+                                  Text(
+                                    'Última existencia conocida: ${item.stockDisponible}',
+                                  ),
                                 ],
                               ),
                             ),
@@ -127,7 +129,9 @@ class CompraOfflineScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: estado.sucursalId,
-                  decoration: const InputDecoration(labelText: 'Retiro en'),
+                  decoration: const InputDecoration(
+                    labelText: 'Sucursal que validará el pedido',
+                  ),
                   items: catalogo.datos.sucursales
                       .map(
                         (s) => DropdownMenuItem(
@@ -147,6 +151,32 @@ class CompraOfflineScreen extends ConsumerWidget {
                         },
                 ),
                 const SizedBox(height: 12),
+                if (estado.direccionEntrega != null)
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.local_shipping_outlined),
+                      title: const Text('Dirección de entrega del pedido'),
+                      subtitle: Text(
+                        [
+                              estado.direccionEntrega!['recipient'],
+                              estado.direccionEntrega!['phone'],
+                              estado.direccionEntrega!['line1'],
+                              estado.direccionEntrega!['city'],
+                            ]
+                            .whereType<String>()
+                            .where((v) => v.isNotEmpty)
+                            .join(' · '),
+                      ),
+                    ),
+                  ),
+                if (estado.direccionEntrega != null)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => context.go('/carrito'),
+                      child: const Text('Editar datos de entrega'),
+                    ),
+                  ),
                 TextFormField(
                   initialValue: estado.contactoNombre,
                   decoration: const InputDecoration(labelText: 'Nombre'),
@@ -162,24 +192,10 @@ class CompraOfflineScreen extends ConsumerWidget {
                       control.configurar(contactoTelefono: value),
                 ),
                 const SizedBox(height: 12),
-                const Text('Forma de pago'),
-                RadioGroup<String>(
-                  groupValue: estado.formaPago,
-                  onChanged: (value) => control.configurar(formaPago: value),
-                  child: Column(
-                    children: [
-                      const RadioListTile<String>(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text('Tarjeta al reconectar'),
-                        value: 'TARJETA_AL_RECONECTAR',
-                      ),
-                      const RadioListTile<String>(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text('Efectivo al retirar'),
-                        value: 'EFECTIVO_AL_RETIRAR',
-                      ),
-                    ],
-                  ),
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.credit_card_outlined),
+                  title: Text('Pago con tarjeta al recuperar conexión'),
                 ),
                 TextFormField(
                   initialValue: estado.notas,
@@ -191,7 +207,7 @@ class CompraOfflineScreen extends ConsumerWidget {
                   onChanged: (value) => control.configurar(notas: value),
                 ),
                 const AvisoOffline(
-                  'Todavía no se cobra nada. Al volver la conexión confirmamos existencia y precio.',
+                  'No es una venta de contado y todavía no se cobra. Al reconectar, la tienda validará existencia y precio. Si todo está correcto, el pedido quedará pendiente de pago con tarjeta.',
                   info: true,
                 ),
                 if (estado.error != null)
@@ -203,7 +219,7 @@ class CompraOfflineScreen extends ConsumerWidget {
                       : guardar,
                   icon: const Icon(Icons.save_outlined),
                   label: Text(
-                    estado.guardando ? 'Guardando…' : 'Guardar mi compra',
+                    estado.guardando ? 'Guardando…' : 'Confirmar pedido',
                   ),
                 ),
                 TextButton(
@@ -230,13 +246,13 @@ class _CompraGuardada extends StatelessWidget {
           const Icon(Icons.check_circle_outline, size: 56, color: Colors.green),
           const SizedBox(height: 12),
           Text(
-            'Compra guardada en este dispositivo · ${compra.folio}',
+            'Pedido pendiente de validación · ${compra.folio}',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
           const Text(
-            'Se enviará sola cuando haya conexión.',
+            'No se cobró nada. Al reconectar, la tienda validará stock y precio. Si todo está correcto, podrás pagar con tarjeta.',
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),

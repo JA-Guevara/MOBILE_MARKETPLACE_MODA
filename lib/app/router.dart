@@ -120,8 +120,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           if (!sesion.autenticado) {
             return '/iniciar-sesion?volverA=${Uri.encodeComponent('/sin-conexion/comprar')}';
           }
-          if (sesion.usuario?.puede('sync.write') != true ||
-              sesion.usuario?.puede('commerce.write') == true) {
+          if (sesion.usuario?.puede('sync.write') != true) {
             return '/sin-conexion/catalogo';
           }
           return null;

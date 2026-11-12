@@ -49,7 +49,8 @@ class CompraLocal {
   final String? notas, pedidoId, pedidoNumero, pagoVenceEn;
   final double subtotal, total;
 
-  String get folio => 'CMP-${id.replaceAll('-', '').substring(0, 8).toUpperCase()}';
+  String get folio =>
+      'CMP-${id.replaceAll('-', '').substring(0, 8).toUpperCase()}';
 
   factory CompraLocal.desdeFila(Map<String, Object?> f) => CompraLocal(
     id: f['id'] as String,
@@ -77,6 +78,7 @@ Map<String, dynamic> payloadCompra({
   required String contactoTelefono,
   required String formaPago,
   String? notas,
+  Map<String, dynamic>? direccionEntrega,
   required String deviceId,
 }) => {
   'items': [
@@ -91,19 +93,23 @@ Map<String, dynamic> payloadCompra({
   'customer_phone': contactoTelefono.trim(),
   'payment_method': formaPago == 'TARJETA_AL_RECONECTAR' ? 'stripe' : 'manual',
   'notes': notas?.trim().isEmpty == true ? null : notas?.trim(),
+  if (direccionEntrega != null) 'address': direccionEntrega,
   'channel': 'mobile',
   'device_id': deviceId,
 };
 
-String? validarItemsCompra(List<ItemCompraLocal> items) {
+String? validarItemsCompra(
+  List<ItemCompraLocal> items, {
+  bool validarStock = true,
+}) {
   if (items.isEmpty) return 'Agregá al menos una prenda.';
   if (items.length > 100) return 'La compra supera el límite de prendas.';
   if (items.any((item) => item.cantidad < 1 || item.cantidad > 10)) {
     return 'Elegí una cantidad entre 1 y 10 por prenda.';
   }
-  if (items.any((item) => item.cantidad > item.stockDisponible)) {
+  if (validarStock &&
+      items.any((item) => item.cantidad > item.stockDisponible)) {
     return 'La cantidad supera la existencia local conocida.';
   }
   return null;
 }
-

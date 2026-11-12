@@ -16,6 +16,7 @@ class EstadoCompraOffline {
     this.contactoTelefono = '',
     this.formaPago = 'TARJETA_AL_RECONECTAR',
     this.notas = '',
+    this.direccionEntrega,
     this.error,
     this.guardando = false,
     this.compraGuardada,
@@ -23,6 +24,7 @@ class EstadoCompraOffline {
   final List<ItemCompraLocal> items;
   final String? sucursalId;
   final String contactoNombre, contactoTelefono, formaPago, notas;
+  final Map<String, dynamic>? direccionEntrega;
   final String? error;
   final bool guardando;
   final CompraLocal? compraGuardada;
@@ -34,6 +36,7 @@ class EstadoCompraOffline {
     String? contactoTelefono,
     String? formaPago,
     String? notas,
+    Map<String, dynamic>? direccionEntrega,
     String? error,
     bool? guardando,
     CompraLocal? compraGuardada,
@@ -46,6 +49,7 @@ class EstadoCompraOffline {
     contactoTelefono: contactoTelefono ?? this.contactoTelefono,
     formaPago: formaPago ?? this.formaPago,
     notas: notas ?? this.notas,
+    direccionEntrega: direccionEntrega ?? this.direccionEntrega,
     error: limpiarError ? null : error ?? this.error,
     guardando: guardando ?? this.guardando,
     compraGuardada: limpiarCompra
@@ -68,7 +72,9 @@ class CompraOfflineController extends StateNotifier<EstadoCompraOffline> {
   final EstadoCatalogoOffline Function() catalogo;
 
   String? agregar(VarianteLocal variante, {int cantidad = 1}) {
-    if (usuario == null || usuario!.puede('commerce.write')) {
+    if (usuario == null ||
+        usuario!.empresa == null ||
+        !usuario!.puede('sync.write')) {
       return 'Esta compra está disponible para cuentas de cliente.';
     }
     final catalogoActual = catalogo();
@@ -118,7 +124,7 @@ class CompraOfflineController extends StateNotifier<EstadoCompraOffline> {
     required String sucursalId,
     required String contactoNombre,
     required String contactoTelefono,
-    required String formaPago,
+    Map<String, dynamic>? direccionEntrega,
   }) {
     final datos = catalogo();
     if (datos.version == null || datos.sucursalId == null) {
@@ -150,16 +156,15 @@ class CompraOfflineController extends StateNotifier<EstadoCompraOffline> {
         ),
       );
     }
-    final error = validarItemsCompra(lineas);
+    final error = validarItemsCompra(lineas, validarStock: false);
     if (error != null) return error;
     state = EstadoCompraOffline(
       items: lineas,
       sucursalId: sucursalId,
       contactoNombre: contactoNombre,
       contactoTelefono: contactoTelefono,
-      formaPago: formaPago == 'stripe'
-          ? 'TARJETA_AL_RECONECTAR'
-          : 'EFECTIVO_AL_RETIRAR',
+      formaPago: 'TARJETA_AL_RECONECTAR',
+      direccionEntrega: direccionEntrega,
     );
     return null;
   }
@@ -198,6 +203,13 @@ class CompraOfflineController extends StateNotifier<EstadoCompraOffline> {
     contactoTelefono: contactoTelefono,
     formaPago: formaPago,
     notas: notas,
+    direccionEntrega: state.direccionEntrega == null
+        ? null
+        : {
+            ...state.direccionEntrega!,
+            if (contactoNombre != null) 'recipient': contactoNombre.trim(),
+            if (contactoTelefono != null) 'phone': contactoTelefono.trim(),
+          },
     limpiarError: true,
   );
 
@@ -210,7 +222,9 @@ class CompraOfflineController extends StateNotifier<EstadoCompraOffline> {
   Future<CompraLocal?> guardar() async {
     if (state.guardando) return null;
     final usuarioActual = usuario;
-    if (usuarioActual == null || usuarioActual.puede('commerce.write')) {
+    if (usuarioActual == null ||
+        usuarioActual.empresa == null ||
+        !usuarioActual.puede('sync.write')) {
       state = state.copyWith(
         error: 'Iniciá sesión con una cuenta de cliente válida.',
       );
@@ -239,6 +253,7 @@ class CompraOfflineController extends StateNotifier<EstadoCompraOffline> {
         contactoTelefono: state.contactoTelefono,
         formaPago: state.formaPago,
         notas: state.notas,
+        direccionEntrega: state.direccionEntrega,
       );
       if (!mounted) return compra;
       state = EstadoCompraOffline(
