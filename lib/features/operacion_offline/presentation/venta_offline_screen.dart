@@ -1,9 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/offline/base_local.dart';
+import '../../../core/offline/conectividad.dart';
 import '../../usuarios_catalogo/application/session_controller.dart';
 import '../application/catalogo_offline_controller.dart';
+import '../application/sincronizacion_controller.dart';
+import '../domain/sincronizacion.dart';
+import '../infrastructure/catalogo_local_dao.dart';
 import '../infrastructure/ventas_locales_dao.dart';
 import '../domain/catalogo_local.dart';
 
@@ -35,17 +40,9 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
       final control = ref.read(catalogoOfflineProvider.notifier);
       await control.iniciar();
       final id = ref.read(catalogoOfflineProvider).sucursalId;
-      var cajas = id == null ? <CajaLocal>[] : await control.dao.cajas(id);
-      if (cajas.isEmpty && id != null) {
-        cajas = [
-          CajaLocal(
-            id: 'caja-principal-$id',
-            sucursalId: id,
-            nombre: 'Caja 1 (Principal)',
-            codigo: 'CAJA-01',
-          ),
-        ];
-      }
+      final cajas = id == null
+          ? <CajaLocal>[]
+          : await CatalogoLocalDao(ref.read(baseLocalProvider)).cajas(id);
       if (mounted) {
         setState(() {
           _cajas = cajas;
@@ -94,6 +91,14 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
         _buscarCliente.clear();
       });
       await ref.read(catalogoOfflineProvider.notifier).iniciar();
+      final online = ref.read(conectividadProvider).valueOrNull ?? false;
+      if (online) {
+        unawaited(
+          ref
+              .read(sincronizacionControllerProvider.notifier)
+              .sincronizarAhora(),
+        );
+      }
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
     } finally {
@@ -240,8 +245,15 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Folio: #${comprobante['folio']} · ${comprobante['estado']}',
+                    'Folio: #${comprobante['folio']} · ${etiquetaEstado(comprobante['estado'] as String? ?? 'PENDIENTE')}',
                     style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    comprobante['server_numero'] != null
+                        ? 'Confirmada · ${comprobante['server_numero']}'
+                        : 'Por subir · se enviará sola cuando haya conexión',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                   if (comprobante['cliente_nombre'] != null) ...[
                     const SizedBox(height: 4),
@@ -294,6 +306,15 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
             TextButton(
               onPressed: () => context.push('/sin-conexion'),
               child: const Text('Preparar catálogo'),
+            ),
+          ] else if (_cajas.isEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Text(
+                'Esta sucursal no tiene cajas habilitadas en este dispositivo. No hay una caja autorizada activa en esta sucursal. Actualizá los datos o pedí al administrador que asigne una caja.',
+                style: TextStyle(fontSize: 14, color: Colors.red),
+                textAlign: TextAlign.center,
+              ),
             ),
           ] else ...[
             DropdownButtonFormField<String>(

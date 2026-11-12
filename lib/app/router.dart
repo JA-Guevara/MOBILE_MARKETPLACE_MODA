@@ -82,6 +82,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '/';
       }
 
+      if (destino == '/sin-conexion/venta' &&
+          usuario?.puede('commerce.write') != true) {
+        return '/sin-conexion/catalogo';
+      }
+
       // El espejo en vivo es público, igual que en la web; una cuenta se pide
       // recién para guardar una foto IA o consultar información personal.
       final exigeSesion = _rutasPrivadas.any(destino.startsWith);
@@ -109,6 +114,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/sin-conexion/venta',
         parentNavigatorKey: _raiz,
+        redirect: (context, estado) {
+          final usuario = ref.read(sessionProvider).usuario;
+          if (usuario?.puede('commerce.write') != true) {
+            return '/sin-conexion/catalogo';
+          }
+          return null;
+        },
         builder: (context, estado) => const VentaOfflineScreen(),
       ),
       GoRoute(

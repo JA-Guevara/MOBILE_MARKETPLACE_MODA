@@ -25,6 +25,7 @@ class VentasLocalesDao {
         subscription?.soloLectura == true ||
         !permiteVentas ||
         !permiteOffline ||
+        !usuario.puede('commerce.write') ||
         (fin != null &&
             DateTime(fin.year, fin.month, fin.day).isBefore(today))) {
       throw StateError('Tu cuenta o suscripción no permite registrar ventas.');
@@ -43,9 +44,12 @@ class VentasLocalesDao {
       };
       final branch = meta['sucursal_id'];
       final validity = DateTime.tryParse(meta['precio_vigente_hasta'] ?? '');
+      final catalogUser = meta['usuario_id'] ?? meta['catalogo_usuario_id'];
       if (meta['tenant_id'] != usuario.empresa?.id ||
           branch == null ||
-          (validity != null && !validity.isAfter(DateTime.now()))) {
+          (catalogUser != null && catalogUser != usuario.id) ||
+          validity == null ||
+          !validity.isAfter(DateTime.now())) {
         throw StateError(
           'Actualizá el catálogo de tu empresa antes de vender.',
         );
@@ -139,10 +143,13 @@ class VentasLocalesDao {
         'recibido': recibido,
         'vuelto': ((recibido * 100).round() - totalCentavos) / 100,
         'forma_pago': 'EFECTIVO',
-        'estado': 'PENDIENTE_SINCRONIZAR',
+        'estado': 'PENDIENTE',
         'catalogo_descargado_en': meta['descargado_en'],
         'creada_en': timestamp,
       };
+      await txn.execute(
+        'CREATE VIEW IF NOT EXISTS lineas_venta_local AS SELECT * FROM venta_items_locales',
+      );
       await txn.insert('ventas_locales', venta);
       for (final item in items) {
         await txn.insert('venta_items_locales', item);

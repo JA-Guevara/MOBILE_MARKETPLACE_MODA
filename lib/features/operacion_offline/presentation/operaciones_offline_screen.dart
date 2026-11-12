@@ -1,11 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/offline/base_local.dart';
 import '../../usuarios_catalogo/application/session_controller.dart';
 import '../application/sincronizacion_controller.dart';
+import '../domain/sincronizacion.dart';
 import '../infrastructure/operaciones_dao.dart';
 import '../infrastructure/sync_api.dart';
+import 'offline_widgets.dart';
 import 'reintegro_offline.dart';
 
 class OperacionesOfflineScreen extends ConsumerStatefulWidget {
@@ -232,8 +235,17 @@ class _OperacionesOfflineScreenState
     });
     final sync = ref.watch(sincronizacionControllerProvider);
     final user = ref.watch(sessionProvider).usuario;
+    final autenticado = ref.watch(sessionProvider).autenticado;
+    final sesionVencida = !autenticado && sync.pendientes > 0;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Operaciones locales')),
+      appBar: AppBar(
+        title: const Text('Operaciones locales'),
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(36),
+          child: IndicadorSincronizacion(),
+        ),
+      ),
       body: RefreshIndicator(
         onRefresh: _cargar,
         child: ListView(
@@ -244,13 +256,17 @@ class _OperacionesOfflineScreenState
                 _error!,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
-            if (sync.ultimoError != null) Text(sync.ultimoError!),
-            FilledButton(
+            if (sesionVencida)
+              AvisoOffline(
+                'Tenés ${sync.pendientes > 0 ? sync.pendientes : 1} ventas por subir. Iniciá sesión para enviarlas.',
+                peligro: true,
+              ),
+            if (sync.ultimoError != null && !sesionVencida) Text(sync.ultimoError!),
+            OutlinedButton.icon(
               onPressed: _ocupado || sync.sincronizando ? null : _sincronizar,
-              child: Text(
-                sync.sincronizando
-                    ? 'Sincronizando…'
-                    : 'Sincronizar y consultar resultado',
+              icon: const Icon(Icons.sync),
+              label: Text(
+                sync.sincronizando ? 'Sincronizando…' : 'Sincronizar ahora',
               ),
             ),
             if (sync.ultimoResultado != null)
@@ -262,17 +278,97 @@ class _OperacionesOfflineScreenState
               icon: const Icon(Icons.history),
               label: const Text('Historial de sincronización'),
             ),
-            for (final operation in _operaciones)
-              ListTile(
-                title: Text('${operation['tipo']} · ${operation['estado']}'),
-                subtitle: Text(
-                  '${operation['creada_en']}${operation['refund_amount'] != null ? ' · Reintegro ${operation['refund_status'] == 'confirmed' ? 'confirmado' : 'pendiente'}: Bs ${operation['refund_amount']}' : ''}',
-                ),
-                onTap: () => _detalle(operation),
-              ),
+            for (final operation in _operaciones) ...[
+              Builder(builder: (context) {
+                final tipoStr = etiquetaTipo(operation['tipo'] as String? ?? '');
+                final estadoStr = etiquetaEstado(operation['estado'] as String? ?? '');
+                final fecha = DateTime.tryParse(operation['creada_en'] as String? ?? '');
+                final fechaStr = fecha != null
+                    ? formatearFechaCorta(fecha.toLocal())
+                    : (operation['creada_en'] as String? ?? '');
+                final esConflicto = (operation['estado'] as String?)?.toUpperCase() == 'CONFLICTO';
+                String? folio = operation['folio'] as String?;
+                String? totalStr;
+                if (operation['payload'] != null) {
+                  try {
+                    final payloadMap = jsonDecode(operation['payload'] as String);
+                    if (payloadMap is Map && payloadMap['total'] != null) {
+                      totalStr = 'Bs ${payloadMap['total']}';
+                    }
+                  } catch (_) {}
+                }
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    title: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '$tipoStr${folio != null ? ' · $folio' : ''} · $fechaStr${totalStr != null ? ' · $totalStr' : ''}',
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: esConflicto
+                                ? Colors.amber.shade100
+                                : estadoStr == 'Confirmada'
+                                    ? Colors.green.shade100
+                                    : Colors.blue.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            estadoStr,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: esConflicto
+                                  ? Colors.amber.shade900
+                                  : estadoStr == 'Confirmada'
+                                      ? Colors.green.shade900
+                                      : Colors.blue.shade900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (operation['server_numero'] != null)
+                          Text('Confirmación ${operation['server_numero']}'),
+                        if (operation['refund_amount'] != null)
+                          Text(
+                            'Reintegro ${operation['refund_status'] == 'confirmed' ? 'confirmado' : 'pendiente'}: Bs ${operation['refund_amount']}',
+                          ),
+                        if (operation['ultimo_error'] != null)
+                          Text('${operation['ultimo_error']}'),
+                        if (esConflicto && user?.puede('sync_conflicts.read') == true)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: () => _conflictosServidor(),
+                              icon: const Icon(Icons.arrow_forward, size: 14),
+                              label: const Text('Resolver →'),
+                            ),
+                          ),
+                      ],
+                    ),
+                    onTap: () => _detalle(operation),
+                  ),
+                );
+              }),
+            ],
             if (_operaciones.isEmpty)
-              const Text(
-                'Esta cuenta no tiene operaciones guardadas en este dispositivo.',
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Text(
+                  'No hay operaciones guardadas en este dispositivo.',
+                  textAlign: TextAlign.center,
+                ),
               ),
             if (user?.puede('sync_conflicts.read') == true)
               OutlinedButton(
