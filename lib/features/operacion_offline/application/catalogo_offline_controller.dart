@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../../core/offline/base_local.dart';
 import '../../usuarios_catalogo/application/session_controller.dart';
 import '../../usuarios_catalogo/domain/usuario.dart';
@@ -73,6 +72,9 @@ class CatalogoOfflineController extends StateNotifier<EstadoCatalogoOffline> {
   final InstantaneaApi api;
   final ImagenesOffline imagenes;
   final Usuario? usuario;
+
+  bool get descargando => state.descargando;
+  DatosLocales get datos => state.datos;
   Future<void> iniciar() async {
     try {
       final m = await dao.meta();
@@ -104,7 +106,7 @@ class CatalogoOfflineController extends StateNotifier<EstadoCatalogoOffline> {
     }
   }
 
-  Future<void> descargar({String? sucursalId}) async {
+  Future<void> descargar({String? sucursalId, bool descargarImagenes = true}) async {
     if (state.descargando) return;
     if (!puedeOperarOffline(usuario)) {
       state = state.copyWith(
@@ -114,6 +116,10 @@ class CatalogoOfflineController extends StateNotifier<EstadoCatalogoOffline> {
       return;
     }
     state = state.copyWith(descargando: true, progreso: .05);
+    await dao.base.guardarMeta(
+      'ultimo_intento_catalogo',
+      DateTime.now().toIso8601String(),
+    );
     try {
       final previa = await dao.meta();
       final sucursal = sucursalId ?? state.sucursalId;
@@ -137,26 +143,30 @@ class CatalogoOfflineController extends StateNotifier<EstadoCatalogoOffline> {
       if (!mounted) return;
       await iniciar();
       if (!mounted) return;
-      state = state.copyWith(progreso: .35);
-      try {
-        await imagenes.preparar(
-          i.productos.map((p) => p.imagenUrl ?? ''),
-          progreso: (n, total) {
-            if (mounted) state = state.copyWith(progreso: .35 + .5 * n / total);
-          },
-        );
-      } catch (_) {
-        if (mounted) {
-          state = state.copyWith(
-            descargando: false,
-            progreso: 1,
-            error: 'El catálogo está disponible sin conexión. Faltan imágenes.',
+      await dao.base.guardarMeta('ultimo_error_catalogo', '');
+      if (descargarImagenes) {
+        state = state.copyWith(progreso: .35);
+        try {
+          await imagenes.preparar(
+            i.productos.map((p) => p.imagenUrl ?? ''),
+            progreso: (n, total) {
+              if (mounted) state = state.copyWith(progreso: .35 + .5 * n / total);
+            },
           );
+        } catch (_) {
+          if (mounted) {
+            state = state.copyWith(
+              descargando: false,
+              progreso: 1,
+              error: 'El catálogo está disponible sin conexión. Faltan imágenes.',
+            );
+          }
+          return;
         }
-        return;
       }
       if (mounted) state = state.copyWith(descargando: false, progreso: 1);
     } catch (error) {
+      await dao.base.guardarMeta('ultimo_error_catalogo', error.toString());
       if (mounted) {
         state = state.copyWith(
           descargando: false,
@@ -186,31 +196,12 @@ final catalogoOfflineProvider =
       ref,
     ) {
       final usuario = ref.watch(sessionProvider.select((s) => s.usuario));
-      final autenticado = ref.watch(
-        sessionProvider.select((s) => s.autenticado),
-      );
       final control = CatalogoOfflineController(
         ref.watch(catalogoLocalDaoProvider),
         InstantaneaApi(ref.watch(apiClientProvider)),
         ref.watch(imagenesOfflineProvider),
         usuario,
       );
-      control.iniciar().then((_) async {
-        if (!control.mounted || !autenticado || !puedeOperarOffline(usuario)) {
-          return;
-        }
-        try {
-          final automatico = await control.dao.base.leerMeta(
-            'descarga_automatica',
-          );
-          if (automatico == 'false') return;
-          final conexion = await Connectivity().checkConnectivity();
-          if (control.mounted && conexion.contains(ConnectivityResult.wifi)) {
-            await control.descargar();
-          }
-        } catch (_) {
-          /* Una detección de Wi-Fi no disponible no bloquea la descarga manual. */
-        }
-      });
+      control.iniciar();
       return control;
     });

@@ -17,6 +17,8 @@ import 'conectividad.dart';
 import '../../features/operacion_offline/domain/sincronizacion.dart';
 import '../../features/operacion_offline/infrastructure/operaciones_dao.dart';
 import '../../features/operacion_offline/infrastructure/sync_api.dart';
+import '../../features/operacion_offline/infrastructure/catalogo_local_dao.dart';
+import '../../features/operacion_offline/infrastructure/instantanea_api.dart';
 
 const String kSincronizacionFondoTask = 'com.fashionstore.sincronizacion_fondo';
 const String kSincronizacionChannelId = 'fashionstore_sync_channel';
@@ -234,6 +236,21 @@ class SincronizacionFondo {
               '${conflictos > 0 ? ', $conflictos en conflicto' : ''}'
               '${rechazadas > 0 ? ', $rechazadas rechazadas' : ''}.',
         );
+      }
+      try {
+        final catalogoDao = CatalogoLocalDao(baseLocal);
+        final meta = await catalogoDao.meta();
+        final instApi = InstantaneaApi(cliente ?? ApiClient());
+        final snap = await instApi.obtener(
+          sucursalId: meta.sucursalId,
+          desde: meta.version,
+        );
+        if (snap.sucursales.isNotEmpty) {
+          final branch = meta.sucursalId ?? snap.sucursales.first.id;
+          await catalogoDao.guardar(snap, branch, usuarioId: identidad.id);
+        }
+      } catch (_) {
+        // El fallo al actualizar catálogo en segundo plano no anula la sincronización.
       }
       return true;
     } catch (_) {

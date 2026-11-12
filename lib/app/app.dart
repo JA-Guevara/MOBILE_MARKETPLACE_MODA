@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/usuarios_catalogo/application/session_controller.dart';
 import '../core/offline/conectividad.dart';
 import '../features/operacion_offline/application/sincronizacion_controller.dart';
+import '../features/operacion_offline/application/catalogo_auto_sync.dart';
 import '../features/ventas_pagos/application/pedidos_controller.dart';
 import '../features/ventas_pagos/application/commerce_providers.dart';
 import '../features/ventas_pagos/infrastructure/pending_payment_store.dart';
@@ -38,6 +39,7 @@ class _FashionStoreAppState extends ConsumerState<FashionStoreApp>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(_verificarPagoPendiente());
+      ref.read(catalogoAutoSyncProvider).notificar('foreground');
     }
   }
 
@@ -117,7 +119,10 @@ class _FashionStoreAppState extends ConsumerState<FashionStoreApp>
   @override
   Widget build(BuildContext context) {
     ref.listen(sessionProvider, (anterior, actual) {
-      if (actual.autenticado) unawaited(_verificarPagoPendiente());
+      if (actual.autenticado) {
+        unawaited(_verificarPagoPendiente());
+        unawaited(ref.read(catalogoAutoSyncProvider).notificar('login'));
+      }
       if (actual.autenticado &&
           !actual.sinConexion &&
           actual.usuario?.puede('sync.write') == true &&
@@ -136,6 +141,7 @@ class _FashionStoreAppState extends ConsumerState<FashionStoreApp>
     });
     ref.listen(conectividadProvider, (_, actual) {
       if (actual.asData?.value == true) {
+        unawaited(ref.read(catalogoAutoSyncProvider).notificar('reconnect'));
         Future.microtask(() async {
           if (!mounted) return;
           if (ref.read(sessionProvider).sinConexion) {
@@ -148,6 +154,11 @@ class _FashionStoreAppState extends ConsumerState<FashionStoreApp>
                 .sincronizarAhora();
           }
         });
+      }
+    });
+    ref.listen(sincronizacionControllerProvider, (_, actual) {
+      if ((actual.ultimoResultado?.confirmed ?? 0) > 0) {
+        unawaited(ref.read(catalogoAutoSyncProvider).notificar('sync_confirmed'));
       }
     });
     return MaterialApp.router(

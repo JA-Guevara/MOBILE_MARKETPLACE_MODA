@@ -4,6 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../app/theme.dart';
 import '../application/catalogo_offline_controller.dart';
+import '../application/sincronizacion_controller.dart';
+import '../domain/sincronizacion.dart';
+import '../../usuarios_catalogo/application/session_controller.dart';
+import '../../../core/offline/conectividad.dart';
 
 String fechaLocal(DateTime? fecha) => fecha == null
     ? 'Nunca'
@@ -96,6 +100,86 @@ class ImagenPrendaOffline extends ConsumerWidget {
       ),
     ),
   );
+}
+
+class IndicadorSincronizacion extends ConsumerWidget {
+  const IndicadorSincronizacion({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final syncState = ref.watch(sincronizacionControllerProvider);
+    final offlineState = ref.watch(catalogoOfflineProvider);
+    final conectado = ref.watch(conectividadProvider).asData?.value ?? true;
+    final autenticado = ref.watch(sessionProvider).autenticado;
+
+    final estado = estadoIndicador(
+      sincronizando: syncState.sincronizando,
+      sesionVencida: !autenticado && syncState.pendientes > 0,
+      online: conectado,
+      servidorAlcanzable: conectado,
+      pendientesCount: syncState.pendientes,
+      conflictosCount: 0,
+    );
+
+    int? minutos;
+    if (offlineState.descargadoEn != null) {
+      minutos = DateTime.now().difference(offlineState.descargadoEn!).inMinutes;
+    }
+
+    final texto = textoIndicador(
+      estado,
+      pendientesCount: syncState.pendientes,
+      minutosDesdeDescarga: minutos,
+      fechaDatos: offlineState.descargadoEn,
+      reintentoEnSegundos: syncState.reintentarEn?.difference(DateTime.now()).inSeconds,
+      desactualizado: offlineState.desactualizado,
+    );
+
+    final esSesionVencida = estado == 'SESION_VENCIDA';
+
+    return Material(
+      color: estado == 'SIN_CONEXION' || estado == 'SERVIDOR_NO_RESPONDE'
+          ? Theme.of(context).colorScheme.errorContainer
+          : estado == 'PENDIENTES' || estado == 'CONFLICTO'
+              ? Theme.of(context).colorScheme.tertiaryContainer
+              : Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).pushNamed('/sin-conexion/operaciones');
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Icon(
+                estado == 'SIN_CONEXION' || estado == 'SERVIDOR_NO_RESPONDE'
+                    ? Icons.cloud_off
+                    : syncState.sincronizando
+                        ? Icons.sync
+                        : Icons.cloud_done,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  texto,
+                  style: Theme.of(context).textTheme.bodySmall,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (esSesionVencida)
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pushNamed('/login');
+                  },
+                  child: const Text('Iniciar sesión'),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class EstadoVacioOffline extends StatelessWidget {

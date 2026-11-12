@@ -15,8 +15,15 @@ final descargaAutomaticaProvider = FutureProvider<bool>(
       'false',
 );
 
+final imagenesConDatosProvider = FutureProvider<bool>(
+  (ref) async =>
+      (await ref.watch(baseLocalProvider).leerMeta('imagenes_con_datos')) ==
+      'true',
+);
+
 class PrepararOfflineScreen extends ConsumerWidget {
   const PrepararOfflineScreen({super.key});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final estado = ref.watch(catalogoOfflineProvider);
@@ -26,10 +33,18 @@ class PrepararOfflineScreen extends ConsumerWidget {
         : null;
     final online = ref.watch(conectividadProvider).valueOrNull ?? true;
     final control = ref.read(catalogoOfflineProvider.notifier);
+
+    final sinSucursales = estado.error?.toLowerCase().contains('no tiene sucursales') == true ||
+        estado.error?.toLowerCase().contains('no_authorized_branches') == true;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sin conexión'),
+        title: const Text('Datos sin conexión'),
         actions: const [IndicadorConexion()],
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(36),
+          child: IndicadorSincronizacion(),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -67,8 +82,8 @@ class PrepararOfflineScreen extends ConsumerWidget {
               ),
             ),
           if (usuario == null) ...[
-            AvisoOffline(
-              'Iniciá sesión con conexión para preparar el catálogo de tu empresa.',
+            const AvisoOffline(
+              'Iniciá sesión con conexión para descargar el catálogo de tu empresa.',
               info: true,
             ),
             const SizedBox(height: 8),
@@ -82,18 +97,48 @@ class PrepararOfflineScreen extends ConsumerWidget {
           ],
           if (usuario != null && !puedeOperarOffline(usuario))
             const AvisoOffline(
-              'Tu suscripción permite consultar el catálogo guardado, pero no actualizarlo.',
+              'Tu plan no incluye la operación sin conexión.',
               peligro: true,
             ),
+          if (sinSucursales)
+            const AvisoOffline(
+              'Tu usuario no tiene sucursales asignadas. Pedile al administrador que te asigne una.',
+              peligro: true,
+            ),
+          if (estado.error != null && !sinSucursales && estado.descargadoEn != null)
+            AvisoOffline(
+              'No se pudo actualizar. Seguís usando los datos del ${fechaLocal(estado.descargadoEn)}. Se reintentará solo.',
+              info: true,
+            )
+          else if (estado.error != null && !sinSucursales)
+            AvisoOffline(estado.error!, peligro: true),
           PanelOffline(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  estado.version == null
-                      ? 'Preparar modo sin conexión'
-                      : '● Listo para usar sin conexión',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        estado.descargando
+                            ? 'Descargando…'
+                            : estado.version != null
+                                ? 'Listo para usar sin conexión'
+                                : 'Aún no preparado',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: estado.version != null
+                                  ? Colors.green.shade700
+                                  : null,
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ),
+                    const Text(
+                      'Se actualiza solo con red',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -102,7 +147,7 @@ class PrepararOfflineScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${estado.datos.productos.length} prendas · ${estado.datos.variantes.length} variantes',
+                  '${estado.datos.productos.length} prendas · ${estado.datos.variantes.length} variantes · ${estado.datos.clientes.length} clientes',
                 ),
                 if (estado.datos.sucursales.isNotEmpty)
                   Padding(
@@ -129,7 +174,7 @@ class PrepararOfflineScreen extends ConsumerWidget {
                     ),
                   ),
                 const SizedBox(height: 14),
-                FilledButton.icon(
+                OutlinedButton.icon(
                   onPressed:
                       estado.descargando ||
                           !online ||
@@ -140,36 +185,44 @@ class PrepararOfflineScreen extends ConsumerWidget {
                   label: Text(
                     estado.descargando
                         ? 'Descargando…'
-                        : estado.version == null
-                        ? 'Descargar catálogo'
                         : 'Actualizar ahora',
                   ),
                 ),
                 if (estado.descargando) ...[
                   const SizedBox(height: 12),
+                  const Text('Descargando el catálogo de tu empresa…'),
+                  const SizedBox(height: 4),
                   LinearProgressIndicator(value: estado.progreso),
                   Text('${(estado.progreso * 100).round()} %'),
                 ],
               ],
             ),
           ),
-          if (estado.error != null) AvisoOffline(estado.error!, peligro: true),
           PanelOffline(
-            child: SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text(
-                'Descarga automática',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: const Text('Al iniciar sesión con Wi-Fi'),
-              value:
-                  ref.watch(descargaAutomaticaProvider).asData?.value ?? true,
-              onChanged: (valor) async {
-                await ref
-                    .read(baseLocalProvider)
-                    .guardarMeta('descarga_automatica', '$valor');
-                ref.invalidate(descargaAutomaticaProvider);
-              },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Descarga automática',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Descargar imágenes también con datos móviles',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  subtitle: const Text('Descarga imágenes del catálogo también sin conexión Wi-Fi'),
+                  value:
+                      ref.watch(imagenesConDatosProvider).asData?.value ?? false,
+                  onChanged: (valor) async {
+                    await ref
+                        .read(baseLocalProvider)
+                        .guardarMeta('imagenes_con_datos', '$valor');
+                    ref.invalidate(imagenesConDatosProvider);
+                  },
+                ),
+              ],
             ),
           ),
           PanelOffline(
@@ -204,14 +257,14 @@ class PrepararOfflineScreen extends ConsumerWidget {
           OutlinedButton.icon(
             onPressed: () => context.push('/sin-conexion/catalogo'),
             icon: const Icon(Icons.grid_view),
-            label: const Text('Ver catálogo guardado'),
+            label: const Text('Abrir catálogo →'),
           ),
           if (usuario?.puede('commerce.write') == true) ...[
             const SizedBox(height: 6),
             FilledButton.icon(
               onPressed: () => context.push('/sin-conexion/venta'),
               icon: const Icon(Icons.point_of_sale),
-              label: const Text('Venta de contado local (POS Offline)'),
+              label: const Text('Venta de contado →'),
             ),
           ],
           const SizedBox(height: 6),
@@ -224,7 +277,7 @@ class PrepararOfflineScreen extends ConsumerWidget {
           OutlinedButton.icon(
             onPressed: () => context.push('/sin-conexion/operaciones'),
             icon: const Icon(Icons.sync_problem_outlined),
-            label: const Text('Operaciones y sincronización'),
+            label: const Text('Operaciones →'),
           ),
         ],
       ),
