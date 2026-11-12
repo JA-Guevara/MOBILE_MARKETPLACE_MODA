@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/widgets/indicador_conexion.dart';
 import '../../usuarios_catalogo/application/session_controller.dart';
 import '../application/catalogo_offline_controller.dart';
+import '../application/compra_offline_controller.dart';
 import '../application/reserva_offline_controller.dart';
 import '../domain/catalogo_local.dart';
 import 'offline_widgets.dart';
@@ -18,8 +19,11 @@ class CatalogoOfflineScreen extends ConsumerWidget {
     final estado = ref.read(catalogoOfflineProvider);
     final usuario = ref.read(sessionProvider).usuario;
     final permitido = puedeOperarOffline(usuario);
-    final esPersonal = usuario != null &&
-        (usuario.puede('commerce.write') || usuario.sucursalesAutorizadas.isNotEmpty);
+    final esCliente = usuario != null && !usuario.puede('commerce.write');
+    final esPersonal =
+        usuario != null &&
+        (usuario.puede('commerce.write') ||
+            usuario.sucursalesAutorizadas.isNotEmpty);
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -46,66 +50,117 @@ class CatalogoOfflineScreen extends ConsumerWidget {
                           contentPadding: EdgeInsets.zero,
                           title: Text('${v.talla} · ${v.color}'),
                           subtitle: Text(
-                            '${montoLocal(v.precio ?? producto.producto.precio)} · Stock ${estado.datos.stock(v.id)}',
+                            '${montoLocal(esCliente ? (v.precio ?? producto.producto.precioBase) : (v.precio ?? producto.producto.precio))} · Stock ${estado.datos.stock(v.id)}',
                           ),
-                          trailing: IconButton(
-                            tooltip: 'Agregar a la reserva',
-                            onPressed: permitido
-                                ? () async {
-                                    final error = ref
-                                        .read(reservaOfflineProvider.notifier)
-                                        .agregar(v);
-                                    Navigator.pop(hoja);
-                                    if (error != null && context.mounted) {
-                                      final stock = estado.datos.stock(v.id);
-                                      final sucursales = estado.datos.sucursales
-                                          .where(
-                                            (s) => s.id == estado.sucursalId,
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (esCliente)
+                                IconButton(
+                                  tooltip: 'Agregar a mi compra',
+                                  onPressed: permitido
+                                      ? () {
+                                          final error = ref
+                                              .read(
+                                                compraOfflineProvider.notifier,
+                                              )
+                                              .agregar(v);
+                                          if (error == null) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Prenda agregada a mi compra.',
+                                                ),
+                                              ),
+                                            );
+                                          } else {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(content: Text(error)),
+                                            );
+                                          }
+                                        }
+                                      : null,
+                                  icon: const Icon(
+                                    Icons.add_shopping_cart_outlined,
+                                  ),
+                                ),
+                              IconButton(
+                                tooltip: 'Agregar a la reserva',
+                                onPressed: permitido
+                                    ? () async {
+                                        final error = ref
+                                            .read(
+                                              reservaOfflineProvider.notifier,
+                                            )
+                                            .agregar(v);
+                                        Navigator.pop(hoja);
+                                        if (error != null && context.mounted) {
+                                          final stock = estado.datos.stock(
+                                            v.id,
                                           );
-                                      await showModalBottomSheet<void>(
-                                        context: context,
-                                        showDragHandle: true,
-                                        builder: (c) => SafeArea(
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(20),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.stretch,
-                                              children: [
-                                                const Icon(
-                                                  Icons.block,
-                                                  color: Colors.red,
-                                                  size: 32,
+                                          final sucursales = estado
+                                              .datos
+                                              .sucursales
+                                              .where(
+                                                (s) =>
+                                                    s.id == estado.sucursalId,
+                                              );
+                                          await showModalBottomSheet<void>(
+                                            context: context,
+                                            showDragHandle: true,
+                                            builder: (c) => SafeArea(
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(
+                                                  20,
                                                 ),
-                                                const SizedBox(height: 14),
-                                                Text(
-                                                  error,
-                                                  style: Theme.of(
-                                                    c,
-                                                  ).textTheme.titleMedium,
+                                                child: Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment
+                                                          .stretch,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.block,
+                                                      color: Colors.red,
+                                                      size: 32,
+                                                    ),
+                                                    const SizedBox(height: 14),
+                                                    Text(
+                                                      error,
+                                                      style: Theme.of(
+                                                        c,
+                                                      ).textTheme.titleMedium,
+                                                    ),
+                                                    const SizedBox(height: 12),
+                                                    Text(
+                                                      '«${producto.producto.nombre} · ${v.talla}» tiene $stock unidades conocidas en ${sucursales.isEmpty ? 'la sucursal' : sucursales.first.nombre}.',
+                                                    ),
+                                                    const SizedBox(height: 16),
+                                                    FilledButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(c),
+                                                      child: const Text(
+                                                        'Elegir otra talla',
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
-                                                const SizedBox(height: 12),
-                                                Text(
-                                                  '«${producto.producto.nombre} · ${v.talla}» tiene $stock unidades conocidas en ${sucursales.isEmpty ? 'la sucursal' : sucursales.first.nombre}.',
-                                                ),
-                                                const SizedBox(height: 16),
-                                                FilledButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(c),
-                                                  child: const Text(
-                                                    'Elegir otra talla',
-                                                  ),
-                                                ),
-                                              ],
+                                              ),
                                             ),
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  }
-                                : null,
-                            icon: const Icon(Icons.add_circle_outline),
+                                          );
+                                        }
+                                      }
+                                    : null,
+                                icon: const Icon(
+                                  Icons.event_available_outlined,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       )
@@ -306,14 +361,27 @@ class CatalogoOfflineScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final estado = ref.watch(catalogoOfflineProvider);
     final reserva = ref.watch(reservaOfflineProvider);
+    final compra = ref.watch(compraOfflineProvider);
     final control = ref.read(catalogoOfflineProvider.notifier);
     final usuario = ref.watch(sessionProvider).usuario;
-    final esPersonal = usuario != null &&
-        (usuario.puede('commerce.write') || usuario.sucursalesAutorizadas.isNotEmpty);
+    final esPersonal =
+        usuario != null &&
+        (usuario.puede('commerce.write') ||
+            usuario.sucursalesAutorizadas.isNotEmpty);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Catálogo'),
         actions: [
+          if (usuario != null && !usuario.puede('commerce.write'))
+            IconButton(
+              tooltip: 'Mi compra sin conexión',
+              onPressed: () => context.push('/sin-conexion/comprar'),
+              icon: Badge(
+                isLabelVisible: compra.items.isNotEmpty,
+                label: Text('${compra.items.length}'),
+                child: const Icon(Icons.shopping_bag_outlined),
+              ),
+            ),
           if (esPersonal)
             IconButton(
               tooltip: 'Venta POS mostrador',
@@ -442,7 +510,11 @@ class CatalogoOfflineScreen extends ConsumerWidget {
                                       children: [
                                         Expanded(
                                           child: Text(
-                                            montoLocal(p.producto.precio),
+                                            montoLocal(
+                                              esPersonal
+                                                  ? p.producto.precio
+                                                  : p.producto.precioBase,
+                                            ),
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
                                             ),

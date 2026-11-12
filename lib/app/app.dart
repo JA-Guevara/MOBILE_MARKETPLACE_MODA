@@ -7,6 +7,7 @@ import '../features/usuarios_catalogo/application/session_controller.dart';
 import '../core/offline/conectividad.dart';
 import '../features/operacion_offline/application/sincronizacion_controller.dart';
 import '../features/operacion_offline/application/catalogo_auto_sync.dart';
+import '../features/operacion_offline/application/catalogo_offline_controller.dart';
 import '../features/ventas_pagos/application/pedidos_controller.dart';
 import '../features/ventas_pagos/application/commerce_providers.dart';
 import '../features/ventas_pagos/infrastructure/pending_payment_store.dart';
@@ -26,6 +27,7 @@ class FashionStoreApp extends ConsumerStatefulWidget {
 class _FashionStoreAppState extends ConsumerState<FashionStoreApp>
     with WidgetsBindingObserver {
   bool _verificandoPago = false;
+  bool _preparandoOfflineYSincronizando = false;
 
   @override
   void initState() {
@@ -110,6 +112,31 @@ class _FashionStoreAppState extends ConsumerState<FashionStoreApp>
     }
   }
 
+  Future<void> _prepararOfflineYSincronizar(String evento) async {
+    if (_preparandoOfflineYSincronizando || !mounted) return;
+    _preparandoOfflineYSincronizando = true;
+    final identity = ref.read(identidadSesionProvider);
+    try {
+      await ref.read(catalogoAutoSyncProvider).notificar(evento);
+      if (!mounted || identity != ref.read(identidadSesionProvider)) return;
+      final sesion = ref.read(sessionProvider);
+      final online = ref.read(conectividadProvider).asData?.value == true;
+      if (online &&
+          sesion.autenticado &&
+          !sesion.sinConexion &&
+          sesion.usuario?.puede('sync.write') == true) {
+        if (ref.read(catalogoOfflineProvider).version == null) {
+          await ref.read(catalogoAutoSyncProvider).notificar('reconnect');
+        }
+        await ref
+            .read(sincronizacionControllerProvider.notifier)
+            .sincronizarAhora();
+      }
+    } finally {
+      _preparandoOfflineYSincronizando = false;
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -121,44 +148,31 @@ class _FashionStoreAppState extends ConsumerState<FashionStoreApp>
     ref.listen(sessionProvider, (anterior, actual) {
       if (actual.autenticado) {
         unawaited(_verificarPagoPendiente());
-        unawaited(ref.read(catalogoAutoSyncProvider).notificar('login'));
       }
       if (actual.autenticado &&
           !actual.sinConexion &&
           actual.usuario?.puede('sync.write') == true &&
           (anterior?.usuario?.id != actual.usuario?.id ||
               anterior?.sinConexion == true)) {
-        Future.microtask(() {
-          if (mounted) {
-            unawaited(
-              ref
-                  .read(sincronizacionControllerProvider.notifier)
-                  .sincronizarAhora(),
-            );
-          }
-        });
+        unawaited(_prepararOfflineYSincronizar('login'));
       }
     });
     ref.listen(conectividadProvider, (_, actual) {
       if (actual.asData?.value == true) {
-        unawaited(ref.read(catalogoAutoSyncProvider).notificar('reconnect'));
         Future.microtask(() async {
           if (!mounted) return;
           if (ref.read(sessionProvider).sinConexion) {
             await ref.read(sessionProvider.notifier).restaurar();
           }
-          if (mounted &&
-              ref.read(sessionProvider).usuario?.puede('sync.write') == true) {
-            await ref
-                .read(sincronizacionControllerProvider.notifier)
-                .sincronizarAhora();
-          }
+          if (mounted) await _prepararOfflineYSincronizar('reconnect');
         });
       }
     });
     ref.listen(sincronizacionControllerProvider, (_, actual) {
       if ((actual.ultimoResultado?.confirmed ?? 0) > 0) {
-        unawaited(ref.read(catalogoAutoSyncProvider).notificar('sync_confirmed'));
+        unawaited(
+          ref.read(catalogoAutoSyncProvider).notificar('sync_confirmed'),
+        );
       }
     });
     return MaterialApp.router(

@@ -5,6 +5,7 @@ import '../../../core/offline/base_local.dart';
 import '../../../core/offline/conectividad.dart';
 import '../../../shared/widgets/indicador_conexion.dart';
 import '../../usuarios_catalogo/application/session_controller.dart';
+import '../application/catalogo_auto_sync.dart';
 import '../application/catalogo_offline_controller.dart';
 import '../application/sincronizacion_controller.dart';
 import 'offline_widgets.dart';
@@ -34,7 +35,8 @@ class PrepararOfflineScreen extends ConsumerWidget {
     final online = ref.watch(conectividadProvider).valueOrNull ?? true;
     final control = ref.read(catalogoOfflineProvider.notifier);
 
-    final sinSucursales = estado.error?.toLowerCase().contains('no tiene sucursales') == true ||
+    final sinSucursales =
+        estado.error?.toLowerCase().contains('no tiene sucursales') == true ||
         estado.error?.toLowerCase().contains('no_authorized_branches') == true;
 
     return Scaffold(
@@ -105,7 +107,9 @@ class PrepararOfflineScreen extends ConsumerWidget {
               'Tu usuario no tiene sucursales asignadas. Pedile al administrador que te asigne una.',
               peligro: true,
             ),
-          if (estado.error != null && !sinSucursales && estado.descargadoEn != null)
+          if (estado.error != null &&
+              !sinSucursales &&
+              estado.descargadoEn != null)
             AvisoOffline(
               'No se pudo actualizar. Seguís usando los datos del ${fechaLocal(estado.descargadoEn)}. Se reintentará solo.',
               info: true,
@@ -124,9 +128,10 @@ class PrepararOfflineScreen extends ConsumerWidget {
                         estado.descargando
                             ? 'Descargando…'
                             : estado.version != null
-                                ? 'Listo para usar sin conexión'
-                                : 'Aún no preparado',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            ? 'Listo para usar sin conexión'
+                            : 'Aún no preparado',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
                               color: estado.version != null
                                   ? Colors.green.shade700
                                   : null,
@@ -180,12 +185,12 @@ class PrepararOfflineScreen extends ConsumerWidget {
                           !online ||
                           !puedeOperarOffline(usuario)
                       ? null
-                      : () => control.descargar(),
+                      : () => ref
+                            .read(catalogoAutoSyncProvider)
+                            .notificar('manual'),
                   icon: const Icon(Icons.download),
                   label: Text(
-                    estado.descargando
-                        ? 'Descargando…'
-                        : 'Actualizar ahora',
+                    estado.descargando ? 'Descargando…' : 'Actualizar ahora',
                   ),
                 ),
                 if (estado.descargando) ...[
@@ -204,17 +209,42 @@ class PrepararOfflineScreen extends ConsumerWidget {
               children: [
                 Text(
                   'Descarga automática',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                 ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Actualizar catálogo con Wi-Fi o datos móviles',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  subtitle: const Text(
+                    'Al iniciar sesión, volver a la app, reconectar y cada 5 minutos.',
+                  ),
+                  value:
+                      ref.watch(descargaAutomaticaProvider).asData?.value ??
+                      true,
+                  onChanged: (valor) async {
+                    await ref
+                        .read(baseLocalProvider)
+                        .guardarMeta('descarga_automatica', '$valor');
+                    ref.invalidate(descargaAutomaticaProvider);
+                  },
+                ),
+                const Divider(),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text(
                     'Descargar imágenes también con datos móviles',
                     style: TextStyle(fontSize: 14),
                   ),
-                  subtitle: const Text('Descarga imágenes del catálogo también sin conexión Wi-Fi'),
+                  subtitle: const Text(
+                    'Controla las imágenes; el catálogo puede actualizarse con cualquier red.',
+                  ),
                   value:
-                      ref.watch(imagenesConDatosProvider).asData?.value ?? false,
+                      ref.watch(imagenesConDatosProvider).asData?.value ??
+                      false,
                   onChanged: (valor) async {
                     await ref
                         .read(baseLocalProvider)

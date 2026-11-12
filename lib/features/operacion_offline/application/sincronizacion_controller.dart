@@ -193,26 +193,94 @@ class SincronizacionController extends StateNotifier<SincronizacionEstado> {
             httpStatus: 200,
           );
 
-          if (resp.confirmed > 0) {
+          final compraConfirmada = resp.results.where(
+            (result) =>
+                result.isConfirmed &&
+                lote.any(
+                  (op) =>
+                      op.id == result.clientRequestId && op.tipo == 'COMPRA',
+                ),
+          );
+          for (final result in compraConfirmada) {
+            notices?.show(
+              AppNotice(
+                key: 'sync:purchase:${result.clientRequestId}',
+                title: result.paymentRequired == true
+                    ? 'Pedido confirmado: falta pagar'
+                    : 'Pedido confirmado para retiro',
+                detail: result.paymentRequired == true
+                    ? 'El pedido ${result.serverNumber ?? ''} fue validado y apartado. Completá el pago con tarjeta para finalizarlo.'
+                    : 'El pedido ${result.serverNumber ?? ''} fue validado y quedó apartado. Pagás en la sucursal al retirarlo.',
+                tone: 'success',
+                important: true,
+                link: result.serverRef == null
+                    ? '/sin-conexion/operaciones'
+                    : '/mi-cuenta/pedidos/${result.serverRef}',
+              ),
+            );
+          }
+          final otrasConfirmadas = resp.results
+              .where(
+                (result) =>
+                    result.isConfirmed &&
+                    lote.any(
+                      (op) =>
+                          op.id == result.clientRequestId &&
+                          op.tipo != 'COMPRA',
+                    ),
+              )
+              .length;
+          if (otrasConfirmadas > 0) {
             notices?.show(
               AppNotice(
                 key: 'sync:confirmed:${DateTime.now().millisecondsSinceEpoch}',
-                title: '¡Operación sin conexión confirmada!',
+                title: 'Operaciones locales confirmadas',
                 detail:
-                    'Se sincronizaron y confirmaron exitosamente ${resp.confirmed} venta(s) guardadas localmente en el servidor.',
+                    'Se confirmaron $otrasConfirmadas operación(es) guardadas en este dispositivo.',
                 tone: 'success',
                 important: true,
                 link: '/sin-conexion/operaciones',
               ),
             );
           }
-          if (resp.conflicts > 0 || resp.rejected > 0) {
+          final comprasSinConfirmar = resp.results.where(
+            (result) =>
+                (result.isConflict || result.isRejected) &&
+                lote.any(
+                  (op) =>
+                      op.id == result.clientRequestId && op.tipo == 'COMPRA',
+                ),
+          );
+          for (final result in comprasSinConfirmar) {
+            notices?.show(
+              AppNotice(
+                key: 'sync:purchase-not-confirmed:${result.clientRequestId}',
+                title: 'Tu compra necesita revisión',
+                detail: 'No se realizó ningún cobro. ${result.message}',
+                tone: 'warning',
+                important: true,
+                link: '/sin-conexion/operaciones',
+              ),
+            );
+          }
+          final otrosNoConfirmados = resp.results
+              .where(
+                (result) =>
+                    (result.isConflict || result.isRejected) &&
+                    lote.any(
+                      (op) =>
+                          op.id == result.clientRequestId &&
+                          op.tipo != 'COMPRA',
+                    ),
+              )
+              .length;
+          if (otrosNoConfirmados > 0) {
             notices?.show(
               AppNotice(
                 key: 'sync:conflict:${DateTime.now().millisecondsSinceEpoch}',
-                title: 'Aviso: Prenda no disponible o conflicto',
+                title: 'Operación local necesita revisión',
                 detail:
-                    'Una o más prendas de tu compra sin conexión presentaron discrepancia de existencias o requieren reintegro (${resp.conflicts + resp.rejected} caso(s)).',
+                    'Una o más operaciones guardadas no se confirmaron ($otrosNoConfirmados caso(s)). Revisá el estado antes de reintentarlas.',
                 tone: 'warning',
                 important: true,
                 link: '/sin-conexion/operaciones',

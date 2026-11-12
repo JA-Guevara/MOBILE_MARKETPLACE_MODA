@@ -35,9 +35,25 @@ class _OperacionesOfflineScreenState
     final user = ref.read(sessionProvider).usuario;
     if (user?.empresa == null) return;
     try {
+      final base = ref.read(baseLocalProvider);
       final rows = await OperacionesDao(
-        ref.read(baseLocalProvider),
+        base,
       ).listarTodas(user!.empresa!.id, user.id);
+      final db = await base.abrir();
+      for (final row in rows.where((op) => op['tipo'] == 'COMPRA')) {
+        final compraId = row['compra_id'] as String? ?? row['id'] as String;
+        final compras = await db.query(
+          'compras_locales',
+          columns: ['estado', 'total', 'pago_vence_en'],
+          where: 'id=? AND tenant_id=? AND usuario_id=?',
+          whereArgs: [compraId, user.empresa!.id, user.id],
+        );
+        if (compras.isNotEmpty) {
+          row['estado_compra'] = compras.single['estado'];
+          row['total_compra'] = compras.single['total'];
+          row['pago_vence_en'] = compras.single['pago_vence_en'];
+        }
+      }
       if (mounted) setState(() => _operaciones = rows);
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
@@ -161,6 +177,10 @@ class _OperacionesOfflineScreenState
   }
 
   Future<void> _detalle(Map<String, Object?> operation) async {
+    if (operation['tipo'] == 'COMPRA' && operation['server_ref'] is String) {
+      context.push('/mi-cuenta/pedidos/${operation['server_ref']}');
+      return;
+    }
     final db = await ref.read(baseLocalProvider).abrir();
     final sales = operation['venta_id'] == null
         ? <Map<String, Object?>>[]
@@ -261,7 +281,8 @@ class _OperacionesOfflineScreenState
                 'Tenés ${sync.pendientes > 0 ? sync.pendientes : 1} ventas por subir. Iniciá sesión para enviarlas.',
                 peligro: true,
               ),
-            if (sync.ultimoError != null && !sesionVencida) Text(sync.ultimoError!),
+            if (sync.ultimoError != null && !sesionVencida)
+              Text(sync.ultimoError!),
             OutlinedButton.icon(
               onPressed: _ocupado || sync.sincronizando ? null : _sincronizar,
               icon: const Icon(Icons.sync),
@@ -279,88 +300,138 @@ class _OperacionesOfflineScreenState
               label: const Text('Historial de sincronización'),
             ),
             for (final operation in _operaciones) ...[
-              Builder(builder: (context) {
-                final tipoStr = etiquetaTipo(operation['tipo'] as String? ?? '');
-                final estadoStr = etiquetaEstado(operation['estado'] as String? ?? '');
-                final fecha = DateTime.tryParse(operation['creada_en'] as String? ?? '');
-                final fechaStr = fecha != null
-                    ? formatearFechaCorta(fecha.toLocal())
-                    : (operation['creada_en'] as String? ?? '');
-                final esConflicto = (operation['estado'] as String?)?.toUpperCase() == 'CONFLICTO';
-                String? folio = operation['folio'] as String?;
-                String? totalStr;
-                if (operation['payload'] != null) {
-                  try {
-                    final payloadMap = jsonDecode(operation['payload'] as String);
-                    if (payloadMap is Map && payloadMap['total'] != null) {
-                      totalStr = 'Bs ${payloadMap['total']}';
-                    }
-                  } catch (_) {}
-                }
+              Builder(
+                builder: (context) {
+                  final tipoStr = etiquetaTipo(
+                    operation['tipo'] as String? ?? '',
+                  );
+                  final estadoStr = etiquetaEstado(
+                    operation['estado'] as String? ?? '',
+                  );
+                  final fecha = DateTime.tryParse(
+                    operation['creada_en'] as String? ?? '',
+                  );
+                  final fechaStr = fecha != null
+                      ? formatearFechaCorta(fecha.toLocal())
+                      : (operation['creada_en'] as String? ?? '');
+                  final esConflicto =
+                      (operation['estado'] as String?)?.toUpperCase() ==
+                      'CONFLICTO';
+                  String? folio = operation['folio'] as String?;
+                  String? totalStr;
+                  if (operation['payload'] != null) {
+                    try {
+                      final payloadMap = jsonDecode(
+                        operation['payload'] as String,
+                      );
+                      if (payloadMap is Map && payloadMap['total'] != null) {
+                        totalStr = 'Bs ${payloadMap['total']}';
+                      }
+                    } catch (_) {}
+                  }
 
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    title: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '$tipoStr${folio != null ? ' · $folio' : ''} · $fechaStr${totalStr != null ? ' · $totalStr' : ''}',
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '$tipoStr${folio != null ? ' · $folio' : ''} · $fechaStr${totalStr != null ? ' · $totalStr' : ''}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
                           ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: esConflicto
-                                ? Colors.amber.shade100
-                                : estadoStr == 'Confirmada'
-                                    ? Colors.green.shade100
-                                    : Colors.blue.shade100,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            estadoStr,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
                               color: esConflicto
-                                  ? Colors.amber.shade900
+                                  ? Colors.amber.shade100
                                   : estadoStr == 'Confirmada'
-                                      ? Colors.green.shade900
-                                      : Colors.blue.shade900,
+                                  ? Colors.green.shade100
+                                  : Colors.blue.shade100,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              estadoStr,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: esConflicto
+                                    ? Colors.amber.shade900
+                                    : estadoStr == 'Confirmada'
+                                    ? Colors.green.shade900
+                                    : Colors.blue.shade900,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (operation['server_numero'] != null)
-                          Text('Confirmación ${operation['server_numero']}'),
-                        if (operation['refund_amount'] != null)
-                          Text(
-                            'Reintegro ${operation['refund_status'] == 'confirmed' ? 'confirmado' : 'pendiente'}: Bs ${operation['refund_amount']}',
-                          ),
-                        if (operation['ultimo_error'] != null)
-                          Text('${operation['ultimo_error']}'),
-                        if (esConflicto && user?.puede('sync_conflicts.read') == true)
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () => _conflictosServidor(),
-                              icon: const Icon(Icons.arrow_forward, size: 14),
-                              label: const Text('Resolver →'),
+                        ],
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (operation['server_numero'] != null)
+                            Text('Confirmación ${operation['server_numero']}'),
+                          if (operation['tipo'] == 'COMPRA')
+                            Text(switch (operation['estado_compra']) {
+                              'PENDIENTE_PAGO' =>
+                                'Pedido confirmado · pago pendiente',
+                              'APARTADA_RETIRO' =>
+                                'Confirmado · pago al retirar',
+                              'EN_CONFLICTO' =>
+                                'No se confirmó · revisá el aviso antes de volver a intentar',
+                              'RECHAZADA_SIN_COBRO' || 'CANCELADA_SIN_COBRO' =>
+                                'No se realizó ningún cobro',
+                              _ =>
+                                'Compra guardada en este dispositivo · todavía sin cobro',
+                            }),
+                          if (operation['tipo'] == 'COMPRA' &&
+                              operation['server_ref'] is String)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: () => _detalle(operation),
+                                icon: Icon(
+                                  operation['payment_required'] == 1
+                                      ? Icons.credit_card
+                                      : Icons.receipt_long,
+                                ),
+                                label: Text(
+                                  operation['payment_required'] == 1
+                                      ? 'Pagar / ver pedido'
+                                      : 'Ver pedido',
+                                ),
+                              ),
                             ),
-                          ),
-                      ],
+                          if (operation['refund_amount'] != null)
+                            Text(
+                              'Reintegro ${operation['refund_status'] == 'confirmed' ? 'confirmado' : 'pendiente'}: Bs ${operation['refund_amount']}',
+                            ),
+                          if (operation['ultimo_error'] != null)
+                            Text('${operation['ultimo_error']}'),
+                          if (esConflicto &&
+                              user?.puede('sync_conflicts.read') == true)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: () => _conflictosServidor(),
+                                icon: const Icon(Icons.arrow_forward, size: 14),
+                                label: const Text('Resolver →'),
+                              ),
+                            ),
+                        ],
+                      ),
+                      onTap: () => _detalle(operation),
                     ),
-                    onTap: () => _detalle(operation),
-                  ),
-                );
-              }),
+                  );
+                },
+              ),
             ],
             if (_operaciones.isEmpty)
               const Padding(

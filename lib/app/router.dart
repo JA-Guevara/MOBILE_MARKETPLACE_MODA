@@ -29,6 +29,7 @@ import '../features/operacion_offline/presentation/operaciones_offline_screen.da
 import '../features/operacion_offline/presentation/historial_sincronizacion_screen.dart';
 import '../features/operacion_offline/presentation/preparar_offline_screen.dart';
 import '../features/operacion_offline/presentation/catalogo_offline_screen.dart';
+import '../features/operacion_offline/presentation/compra_offline_screen.dart';
 import '../features/operacion_offline/presentation/reserva_offline_screen.dart';
 import '../features/operacion_offline/presentation/reservas_locales_screen.dart';
 import '../features/operacion_offline/presentation/comprobante_reserva_screen.dart';
@@ -110,6 +111,22 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/sin-conexion/catalogo',
         parentNavigatorKey: _raiz,
         builder: (context, estado) => const CatalogoOfflineScreen(),
+      ),
+      GoRoute(
+        path: '/sin-conexion/comprar',
+        parentNavigatorKey: _raiz,
+        redirect: (context, estado) {
+          final sesion = ref.read(sessionProvider);
+          if (!sesion.autenticado) {
+            return '/iniciar-sesion?volverA=${Uri.encodeComponent('/sin-conexion/comprar')}';
+          }
+          if (sesion.usuario?.puede('sync.write') != true ||
+              sesion.usuario?.puede('commerce.write') == true) {
+            return '/sin-conexion/catalogo';
+          }
+          return null;
+        },
+        builder: (context, estado) => const CompraOfflineScreen(),
       ),
       GoRoute(
         path: '/sin-conexion/venta',

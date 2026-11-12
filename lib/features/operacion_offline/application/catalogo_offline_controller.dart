@@ -52,7 +52,9 @@ class EstadoCatalogoOffline {
 
 bool puedeOperarOffline(Usuario? usuario, {DateTime? ahora}) {
   if (usuario == null) return false;
-  if (usuario.empresa != null && usuario.empresa!.estado != 'ACTIVA') return false;
+  if (usuario.empresa != null && usuario.empresa!.estado != 'ACTIVA') {
+    return false;
+  }
   final s = usuario.suscripcion;
   if (s == null) {
     return true;
@@ -106,7 +108,10 @@ class CatalogoOfflineController extends StateNotifier<EstadoCatalogoOffline> {
     }
   }
 
-  Future<void> descargar({String? sucursalId, bool descargarImagenes = true}) async {
+  Future<void> descargar({
+    String? sucursalId,
+    bool descargarImagenes = true,
+  }) async {
     if (state.descargando) return;
     if (!puedeOperarOffline(usuario)) {
       state = state.copyWith(
@@ -116,12 +121,14 @@ class CatalogoOfflineController extends StateNotifier<EstadoCatalogoOffline> {
       return;
     }
     state = state.copyWith(descargando: true, progreso: .05);
-    await dao.base.guardarMeta(
-      'ultimo_intento_catalogo',
-      DateTime.now().toIso8601String(),
-    );
     try {
+      await dao.base.guardarMeta(
+        'ultimo_intento_catalogo',
+        DateTime.now().toIso8601String(),
+      );
+      if (!mounted) return;
       final previa = await dao.meta();
+      if (!mounted) return;
       final sucursal = sucursalId ?? state.sucursalId;
       final incremental =
           previa.tenantId == usuario!.empresa!.id &&
@@ -150,7 +157,9 @@ class CatalogoOfflineController extends StateNotifier<EstadoCatalogoOffline> {
           await imagenes.preparar(
             i.productos.map((p) => p.imagenUrl ?? ''),
             progreso: (n, total) {
-              if (mounted) state = state.copyWith(progreso: .35 + .5 * n / total);
+              if (mounted) {
+                state = state.copyWith(progreso: .35 + .5 * n / total);
+              }
             },
           );
         } catch (_) {
@@ -158,7 +167,8 @@ class CatalogoOfflineController extends StateNotifier<EstadoCatalogoOffline> {
             state = state.copyWith(
               descargando: false,
               progreso: 1,
-              error: 'El catálogo está disponible sin conexión. Faltan imágenes.',
+              error:
+                  'El catálogo está disponible sin conexión. Faltan imágenes.',
             );
           }
           return;
@@ -166,7 +176,11 @@ class CatalogoOfflineController extends StateNotifier<EstadoCatalogoOffline> {
       }
       if (mounted) state = state.copyWith(descargando: false, progreso: 1);
     } catch (error) {
-      await dao.base.guardarMeta('ultimo_error_catalogo', error.toString());
+      try {
+        await dao.base.guardarMeta('ultimo_error_catalogo', error.toString());
+      } catch (_) {
+        // Keep the original download error if recording it also fails.
+      }
       if (mounted) {
         state = state.copyWith(
           descargando: false,
@@ -180,6 +194,7 @@ class CatalogoOfflineController extends StateNotifier<EstadoCatalogoOffline> {
   Future<void> elegirSucursal(String id) async {
     if (!state.datos.sucursales.any((s) => s.id == id)) return;
     final datos = await dao.leer(id);
+    if (!mounted) return;
     await dao.base.guardarMeta('sucursal_id', id);
     if (mounted) state = state.copyWith(datos: datos, sucursalId: id);
   }

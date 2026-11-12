@@ -129,6 +129,10 @@ class OperacionesDao {
             'estado': estado,
             'refund_amount': res.refundAmount,
             'refund_status': res.refundStatus,
+            'payment_required': res.paymentRequired == null
+                ? null
+                : (res.paymentRequired! ? 1 : 0),
+            'payment_expires_at': res.paymentExpiresAt,
             'server_ref': res.serverRef,
             'server_numero': res.serverNumber,
             'conflicto_id': res.conflictId,
@@ -140,6 +144,53 @@ class OperacionesDao {
           where: 'id=?',
           whereArgs: [res.clientRequestId],
         );
+        final compraId = operation['compra_id'] as String? ??
+            (operation['tipo'] == 'COMPRA' ? res.clientRequestId : null);
+        if (compraId != null) {
+          final estadoCompra = res.isConfirmed
+              ? (res.paymentRequired == true ? 'PENDIENTE_PAGO' : 'APARTADA_RETIRO')
+              : res.isConflict
+                  ? 'EN_CONFLICTO'
+                  : res.isRejected
+                      ? 'RECHAZADA_SIN_COBRO'
+                      : 'POR_ENVIAR';
+          await txn.update(
+            'compras_locales',
+            {
+              'estado': estadoCompra,
+              'pedido_id': res.serverRef,
+              'pedido_numero': res.serverNumber,
+              'pago_vence_en': res.paymentExpiresAt,
+              if (res.total != null) 'total': double.tryParse(res.total!),
+            },
+            where: 'id=?',
+            whereArgs: [compraId],
+          );
+          if ((res.isConflict || res.isRejected) &&
+              operation['estado'] != 'CONFLICTO' &&
+              operation['estado'] != 'RECHAZADA') {
+            final compras = await txn.query(
+              'compras_locales',
+              columns: ['sucursal_id'],
+              where: 'id=?',
+              whereArgs: [compraId],
+            );
+            if (compras.isNotEmpty) {
+              final sucursalId = compras.single['sucursal_id'];
+              final items = await txn.query(
+                'compra_items_locales',
+                where: 'compra_id=?',
+                whereArgs: [compraId],
+              );
+              for (final item in items) {
+                await txn.rawUpdate(
+                  'UPDATE existencias SET cantidad=cantidad+? WHERE variante_id=? AND sucursal_id=?',
+                  [item['cantidad'], item['variante_id'], sucursalId],
+                );
+              }
+            }
+          }
+        }
         if (operation['venta_id'] != null) {
           await txn.update(
             'ventas_locales',

@@ -8,7 +8,6 @@ import '../../usuarios_catalogo/application/session_controller.dart';
 import '../application/catalogo_offline_controller.dart';
 import '../application/sincronizacion_controller.dart';
 import '../domain/sincronizacion.dart';
-import '../infrastructure/catalogo_local_dao.dart';
 import '../infrastructure/ventas_locales_dao.dart';
 import '../domain/catalogo_local.dart';
 
@@ -40,9 +39,7 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
       final control = ref.read(catalogoOfflineProvider.notifier);
       await control.iniciar();
       final id = ref.read(catalogoOfflineProvider).sucursalId;
-      final cajas = id == null
-          ? <CajaLocal>[]
-          : await CatalogoLocalDao(ref.read(baseLocalProvider)).cajas(id);
+      final cajas = id == null ? <CajaLocal>[] : await control.dao.cajas(id);
       if (mounted) {
         setState(() {
           _cajas = cajas;
@@ -235,7 +232,11 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
                       color: Color(0xFFDCFCE7),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 34),
+                    child: const Icon(
+                      Icons.check_circle_rounded,
+                      color: Color(0xFF16A34A),
+                      size: 34,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   const Text(
@@ -246,7 +247,10 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
                   const SizedBox(height: 4),
                   Text(
                     'Folio: #${comprobante['folio']} · ${etiquetaEstado(comprobante['estado'] as String? ?? 'PENDIENTE')}',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 13,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -257,7 +261,10 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
                   ),
                   if (comprobante['cliente_nombre'] != null) ...[
                     const SizedBox(height: 4),
-                    Text('Cliente: ${comprobante['cliente_nombre']}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Text(
+                      'Cliente: ${comprobante['cliente_nombre']}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ],
                   const SizedBox(height: 12),
                   Container(
@@ -270,17 +277,33 @@ class _VentaOfflineScreenState extends ConsumerState<VentaOfflineScreen> {
                     ),
                     child: Column(
                       children: [
-                        Text('TOTAL COBRADO', style: TextStyle(fontSize: 11, letterSpacing: 1.1, color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                        Text(
+                          'TOTAL COBRADO',
+                          style: TextStyle(
+                            fontSize: 11,
+                            letterSpacing: 1.1,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         const SizedBox(height: 2),
                         Text(
                           'Bs ${(comprobante['total'] as num).toStringAsFixed(2)}',
-                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF1E293B)),
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1E293B),
+                          ),
                         ),
                         if ((comprobante['vuelto'] as num? ?? 0) > 0) ...[
                           const SizedBox(height: 6),
                           Text(
                             'Vuelto a entregar: Bs ${(comprobante['vuelto'] as num).toStringAsFixed(2)}',
-                            style: const TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.bold, fontSize: 13),
+                            style: const TextStyle(
+                              color: Color(0xFF16A34A),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
                           ),
                         ],
                       ],

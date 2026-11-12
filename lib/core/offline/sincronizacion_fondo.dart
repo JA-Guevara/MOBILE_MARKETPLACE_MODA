@@ -64,7 +64,9 @@ void callbackDispatcher() {
         task != Workmanager.iOSBackgroundTask) {
       return true;
     }
-    return SincronizacionFondo.ejecutarSincronizacion();
+    // sqflite usa singleInstance por defecto. Cerrar desde el isolate de
+    // WorkManager puede cerrar también el handle que usa la interfaz.
+    return SincronizacionFondo.ejecutarSincronizacion(cerrarBaseAlFinal: false);
   });
 }
 
@@ -139,6 +141,7 @@ class SincronizacionFondo {
     Usuario? usuario,
     Future<bool> Function()? hayRed,
     DateTime Function()? ahora,
+    bool cerrarBaseAlFinal = true,
   }) async {
     if (_enviando) return false;
     _enviando = true;
@@ -259,7 +262,7 @@ class SincronizacionFondo {
     } finally {
       cliente?.dio.close(force: true);
       try {
-        if (base == null) await baseLocal.cerrar();
+        if (base == null && cerrarBaseAlFinal) await baseLocal.cerrar();
       } finally {
         _enviando = false;
       }

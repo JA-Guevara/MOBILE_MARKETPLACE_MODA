@@ -7,7 +7,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../shared/formato.dart';
 import '../../../core/notifications/app_notices.dart';
+import '../../../core/offline/conectividad.dart';
 import '../../usuarios_catalogo/application/session_controller.dart';
+import '../../operacion_offline/application/catalogo_offline_controller.dart';
+import '../../operacion_offline/application/compra_offline_controller.dart';
 import '../../../shared/widgets/estado_vista.dart';
 import '../application/carrito_controller.dart';
 import '../application/pedidos_controller.dart';
@@ -31,6 +34,7 @@ class CarritoScreen extends ConsumerStatefulWidget {
 
 class _CarritoScreenState extends ConsumerState<CarritoScreen> {
   final _cupon = TextEditingController();
+  bool _confirmacionFallida = false;
 
   @override
   void initState() {
@@ -47,11 +51,15 @@ class _CarritoScreenState extends ConsumerState<CarritoScreen> {
   Future<void> _comprar() async {
     final identity = ref.read(identidadSesionProvider);
     final resultado = await ref.read(carritoProvider.notifier).comprar();
+    if (mounted && resultado == null && identity == ref.read(identidadSesionProvider)) {
+      setState(() => _confirmacionFallida = true);
+    }
     if (!mounted ||
         resultado == null ||
         identity != ref.read(identidadSesionProvider)) {
       return;
     }
+    setState(() => _confirmacionFallida = false);
     unawaited(ref.read(pedidosProvider.notifier).cargar());
     if (resultado.urlPago == null || resultado.errorPago != null) {
       final pedido = resultado.pedido;
@@ -130,10 +138,35 @@ class _CarritoScreenState extends ConsumerState<CarritoScreen> {
     }
   }
 
+  Future<void> _guardarComoCompraOffline(EstadoCarrito estado) async {
+    final usuario = ref.read(sessionProvider).usuario;
+    if (usuario == null || usuario.puede('commerce.write')) return;
+    await ref.read(catalogoOfflineProvider.notifier).iniciar();
+    final control = ref.read(compraOfflineProvider.notifier);
+    final error = control.prepararDesdeCarrito(
+      carrito: estado.items,
+      sucursalId: estado.sucursalId,
+      contactoNombre: estado.entrega.destinatario.trim().isEmpty
+          ? usuario.nombreCompleto
+          : estado.entrega.destinatario,
+      contactoTelefono: estado.entrega.telefono.trim().isEmpty
+          ? usuario.telefono ?? ''
+          : estado.entrega.telefono,
+      formaPago: estado.metodoPago,
+    );
+    if (!mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    context.go('/sin-conexion/comprar');
+  }
+
   @override
   Widget build(BuildContext context) {
     final estado = ref.watch(carritoProvider);
     final control = ref.read(carritoProvider.notifier);
+    final offline = ref.watch(conectividadProvider).asData?.value == false;
 
     return Scaffold(
       appBar: AppBar(
@@ -156,14 +189,24 @@ class _CarritoScreenState extends ConsumerState<CarritoScreen> {
             ),
         ],
       ),
-      body: SafeArea(child: _cuerpo(estado, control)),
+      body: SafeArea(
+        child: _cuerpo(
+          estado,
+          control,
+          permitirGuardarOffline: offline && !_confirmacionFallida,
+        ),
+      ),
       bottomNavigationBar: estado.vacio
           ? null
           : _BarraTotal(estado: estado, onComprar: _comprar),
     );
   }
 
-  Widget _cuerpo(EstadoCarrito estado, CarritoController control) {
+  Widget _cuerpo(
+    EstadoCarrito estado,
+    CarritoController control, {
+    required bool permitirGuardarOffline,
+  }) {
     if (estado.cargando && estado.carrito == null) {
       return const VistaCargando(mensaje: 'Abriendo tu carrito…');
     }
@@ -239,12 +282,36 @@ class _CarritoScreenState extends ConsumerState<CarritoScreen> {
         _Entrega(estado: estado, control: control),
         const Divider(height: 32),
         _MetodoPago(estado: estado, onElegir: control.elegirMetodoPago),
+        if (permitirGuardarOffline &&
+            estado.items.isNotEmpty &&
+            ref.read(sessionProvider).usuario?.puede('commerce.write') != true) ...[
+          const SizedBox(height: 14),
+          const Text(
+            'Sin conexión. Podés guardar la compra en este teléfono; validaremos existencia y precio al reconectar.',
+          ),
+          OutlinedButton.icon(
+            onPressed: () => _guardarComoCompraOffline(estado),
+            icon: const Icon(Icons.save_alt),
+            label: const Text('Guardar como compra sin conexión'),
+          ),
+        ],
         if (estado.error != null) ...[
           const SizedBox(height: 16),
           Text(
             estado.error!,
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
+          if (!_confirmacionFallida &&
+              estado.items.isNotEmpty &&
+              ref.read(sessionProvider).usuario?.puede('commerce.write') != true) ...[
+            const SizedBox(height: 8),
+            const Text('No se cobró nada. Podés guardar esta compra en el teléfono y validar el stock y el precio al reconectar.'),
+            OutlinedButton.icon(
+              onPressed: () => _guardarComoCompraOffline(estado),
+              icon: const Icon(Icons.save_alt),
+              label: const Text('Guardar como compra sin conexión'),
+            ),
+          ],
         ],
       ],
     );

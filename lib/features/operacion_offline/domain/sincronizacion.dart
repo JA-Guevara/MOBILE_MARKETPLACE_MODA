@@ -12,7 +12,7 @@ class SyncOperationWire {
   });
 
   final String clientRequestId;
-  final String type; // 'SALE' or 'RESERVATION'
+  final String type; // 'SALE', 'RESERVATION' or 'PURCHASE'
   final String branchId;
   final String deviceId;
   final String clientCreatedAt;
@@ -30,7 +30,11 @@ class SyncOperationWire {
   factory SyncOperationWire.desdeOperacion(OperacionPendiente op) =>
       SyncOperationWire(
         clientRequestId: op.id,
-        type: op.tipo == 'VENTA' || op.tipo == 'SALE' ? 'SALE' : 'RESERVATION',
+        type: switch (op.tipo.toUpperCase()) {
+          'VENTA' || 'SALE' => 'SALE',
+          'COMPRA' || 'PURCHASE' => 'PURCHASE',
+          _ => 'RESERVATION',
+        },
         branchId: op.sucursalId,
         deviceId: op.dispositivoId,
         clientCreatedAt: op.creadaEn.toIso8601String(),
@@ -51,6 +55,11 @@ class SyncResult {
     this.replay = false,
     this.refundAmount,
     this.refundStatus,
+    this.paymentRequired,
+    this.paymentMethod,
+    this.total,
+    this.paymentExpiresAt,
+    this.conflictLines = const [],
   });
 
   final String clientRequestId;
@@ -63,6 +72,9 @@ class SyncResult {
   final String? reasonCode;
   final bool replay;
   final String? refundAmount, refundStatus;
+  final bool? paymentRequired;
+  final String? paymentMethod, total, paymentExpiresAt;
+  final List<Map<String, dynamic>> conflictLines;
 
   bool get isConfirmed => status == 'CONFIRMED';
   bool get isConflict => status == 'CONFLICT';
@@ -80,6 +92,13 @@ class SyncResult {
     replay: json['replay'] as bool? ?? false,
     refundAmount: json['refund_amount'] as String?,
     refundStatus: json['refund_status'] as String?,
+    paymentRequired: json['payment_required'] as bool?,
+    paymentMethod: json['payment_method'] as String?,
+    total: json['total']?.toString(),
+    paymentExpiresAt: json['payment_expires_at'] as String?,
+    conflictLines: (json['conflict_lines'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .toList(),
   );
 }
 
